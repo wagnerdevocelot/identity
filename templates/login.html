@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <style>
+        body { font-family: sans-serif; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="text"], input[type="password"] { margin-bottom: 10px; padding: 5px; width: 200px; }
+        input[type="submit"] { padding: 5px 10px; }
+        .error { color: red; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Login</h1>
+
+    {{ if .Error }}
+        <p class="error">{{ .Error }}</p>
+    {{ end }}
+
+    <form method="post">
+        <input type="hidden" name="session_id" value="{{ .SessionID }}">
+        {{ .CSRFTokenField }}
+
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required><br>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br>
+
+        <input type="submit" value="Login">
+    </form>
+</body>
+</html>

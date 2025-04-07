@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Grant Access</title>
+    <style>
+        body { font-family: sans-serif; }
+        ul { list-style: none; padding: 0; }
+        li { margin-bottom: 5px; }
+        input[type="submit"] { margin-top: 10px; padding: 5px 10px; }
+        .client-id { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Grant Access</h1>
+    <p>Application <strong class="client-id">{{ .ClientID }}</strong> wants permission to access the following:</p>
+
+    <form method="post">
+        <input type="hidden" name="session_id" value="{{ .SessionID }}">
+        {{ .CSRFTokenField }}
+
+        <ul>
+        {{ range .RequestedScopes }}
+            <li>
+                <input type="checkbox" name="scopes" value="{{ . }}" id="scope_{{ . }}" checked>
+                <label for="scope_{{ . }}">{{ . }}</label>
+            </li>
+        {{ end }}
+        </ul>
+
+        <input type="submit" name="consent" value="Allow">
+        <input type="submit" name="consent" value="Deny">
+    </form>
+</body>
+</html>
