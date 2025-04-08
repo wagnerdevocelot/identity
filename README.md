@@ -40,6 +40,24 @@ This example uses hardcoded configuration values and `compose.Compose` for setti
 ```
 The server will start listening on `http://localhost:8080`.
 
+## Running with Docker
+
+Alternatively, you can build and run the application using Docker, avoiding the need to install Go dependencies locally.
+
+1.  **Build the Docker Image:**
+    ```bash
+    docker build -t identity-go-app .
+    ```
+    This command builds the Docker image using the `Dockerfile` in the root directory and tags it as `identity-go-app`.
+
+2.  **Run the Docker Container:**
+    ```bash
+    docker run -p 8080:8080 identity-go-app
+    ```
+    This command starts a container from the `identity-go-app` image and maps port 8080 on your host machine to port 8080 inside the container.
+
+    The server will start listening, and you can access it at `http://localhost:8080` in your browser.
+
 ## Endpoints
 
 *   `/oauth2/auth`: Authorization endpoint.
