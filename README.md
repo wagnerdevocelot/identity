@@ -27,7 +27,7 @@ This example uses hardcoded configuration values and `compose.Compose` for setti
 *   **Fosite Setup:** Uses `compose.Compose` with `compose.CommonStrategy` (`main.go`).
 *   **HMAC Secret:** A 32-byte secret (`jwtSecret`) is defined and set in `fositeConfig.GlobalSecret`. The core HMAC strategy (`CoreStrategy`) is configured via `compose.NewOAuth2HMACStrategy(fositeConfig)`, relying on the `GlobalSecret`. **Use a strong, random secret in production.**
 *   **OIDC Strategy:** Uses RSA keys (generated on startup) configured via `compose.NewOpenIDConnectStrategy(...)` within `CommonStrategy`. **Use persistent, securely stored RSA keys in production.**
-*   **Storage:** Uses an in-memory store (`storage.go`). All data is lost on restart. **Replace with persistent storage (SQL, etc.) for production.**
+*   **Storage:** Uses an in-memory store (`storage.go`). All data is lost on restart. A generic `StorageInterface` is now available for implementing persistent storage alternatives. **Replace with persistent storage (SQL, etc.) for production.**
 *   **Example Client:** Client ID `my-test-client`, secret `foobar` (hashed in `storage.go`).
 *   **Port:** Listens on `:8080` (`main.go`).
 *   **Session Management:** Basic, insecure in-memory sessions (`handlers.go`). **Replace with robust session handling.**
@@ -219,11 +219,17 @@ Unit tests are provided in `main_test.go`. You can run them using:
 
 ## Current Limitations & Future Work
 
-*   **In-Memory Storage:** Not suitable for production.
+*   **In-Memory Storage:** Not suitable for production. A generic `StorageInterface` has been implemented to make it easier to create persistent storage implementations (SQL, Redis, etc.).
 *   **Basic Session Handling:** Insecure.
 *   **No Proper CSRF Middleware:** Manual CSRF logic in place; `gorilla/csrf` not used.
 *   **OIDC Discovery & JWKS Missing:** Handlers are commented out.
 *   **Hardcoded Configuration:** Secrets and client details are hardcoded.
 *   **Limited User Management:** Only a dummy user (`user`/`password`) check exists.
 
-Future work includes addressing these limitations.
+Future work includes:
+* Implementing a persistent storage solution using the new `StorageInterface`
+* Improving security with proper session management
+* Enabling proper CSRF protection
+* Completing OIDC discovery and JWKS endpoints
+* Moving configuration to environment variables or a configuration file
+* Developing a more robust user management system

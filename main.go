@@ -66,7 +66,7 @@ func init() {
 		compose.OAuth2ClientCredentialsGrantFactory, // Keep enabled for now
 		compose.OAuth2RefreshTokenGrantFactory,
 		compose.OAuth2TokenIntrospectionFactory, // Re-enabled
-		compose.OAuth2TokenRevocationFactory, // Re-enabled
+		compose.OAuth2TokenRevocationFactory,    // Re-enabled
 
 		compose.OpenIDConnectExplicitFactory,
 		compose.OpenIDConnectImplicitFactory,
@@ -138,7 +138,7 @@ func init() {
 
 // introspectionEndpoint handles token introspection requests
 func introspectionEndpoint(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context() // Use request context directly
+	ctx := r.Context()                    // Use request context directly
 	session := new(openid.DefaultSession) // Use appropriate session type
 	ir, err := oauth2Provider.NewIntrospectionRequest(ctx, r, session)
 	if err != nil {
