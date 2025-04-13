@@ -13,6 +13,31 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// StorageInterface defines a generic contract for all storage implementations,
+// providing a common set of methods for CRUD operations on different entities.
+type StorageInterface interface {
+	// Client operations
+	GetClient(ctx context.Context, id string) (fosite.Client, error)
+	CreateClient(ctx context.Context, client fosite.Client) error
+	UpdateClient(ctx context.Context, client fosite.Client) error
+	DeleteClient(ctx context.Context, id string) error
+
+	// Token operations
+	CreateToken(ctx context.Context, tokenType string, signature string, clientID string, data interface{}) error
+	GetToken(ctx context.Context, tokenType string, signature string) (interface{}, error)
+	DeleteToken(ctx context.Context, tokenType string, signature string) error
+	RevokeToken(ctx context.Context, tokenType string, signature string) error
+
+	// Session operations
+	CreateSession(ctx context.Context, sessionType string, id string, data interface{}) error
+	GetSession(ctx context.Context, sessionType string, id string) (interface{}, error)
+	DeleteSession(ctx context.Context, sessionType string, id string) error
+
+	// JWT operations
+	ValidateJWT(ctx context.Context, jti string) error
+	MarkJWTAsUsed(ctx context.Context, jti string, exp time.Time) error
+}
+
 // InMemoryStore provides a simple in-memory implementation of Fosite's storage interfaces.
 // WARNING: This is for demonstration purposes only. Use a persistent store in production.
 type InMemoryStore struct {
@@ -56,9 +81,9 @@ func NewInMemoryStore() *InMemoryStore {
 			Public:        false,
 		},
 		// Kept valid OIDC fields, removed invalid ones for v0.49.0
-		JSONWebKeysURI:                 "",
-		TokenEndpointAuthMethod:        "client_secret_basic",
-		RequestURIs:                    []string{},
+		JSONWebKeysURI:          "",
+		TokenEndpointAuthMethod: "client_secret_basic",
+		RequestURIs:             []string{},
 		// BackChannelLogoutSessionRequired: false, // Removed
 		// Contacts:                       []string{"admin@example.com"}, // Removed
 	}
@@ -304,11 +329,177 @@ func (s *InMemoryStore) DeletePKCERequestSession(ctx context.Context, signature 
 	return nil
 }
 
+// -- StorageInterface Implementation --
+
+// CreateClient implements the StorageInterface method for creating a client
+func (s *InMemoryStore) CreateClient(ctx context.Context, client fosite.Client) error {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+	s.Clients[client.GetID()] = client
+	return nil
+}
+
+// UpdateClient implements the StorageInterface method for updating a client
+func (s *InMemoryStore) UpdateClient(ctx context.Context, client fosite.Client) error {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+
+	// Verify client exists
+	if _, ok := s.Clients[client.GetID()]; !ok {
+		return fmt.Errorf("%w: client with ID %s not found", fosite.ErrNotFound, client.GetID())
+	}
+
+	// Update client
+	s.Clients[client.GetID()] = client
+	return nil
+}
+
+// DeleteClient implements the StorageInterface method for deleting a client
+func (s *InMemoryStore) DeleteClient(ctx context.Context, id string) error {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+
+	// Check if client exists
+	if _, ok := s.Clients[id]; !ok {
+		return fmt.Errorf("%w: client with ID %s not found", fosite.ErrNotFound, id)
+	}
+
+	// Delete client
+	delete(s.Clients, id)
+	return nil
+}
+
+// CreateToken implements the StorageInterface method for creating tokens
+func (s *InMemoryStore) CreateToken(ctx context.Context, tokenType string, signature string, clientID string, data interface{}) error {
+	// Type assertion to ensure data is a fosite.Requester
+	requester, ok := data.(fosite.Requester)
+	if !ok {
+		return fmt.Errorf("invalid data type for token creation, expected fosite.Requester")
+	}
+
+	switch tokenType {
+	case "access_token":
+		return s.CreateAccessTokenSession(ctx, signature, requester)
+	case "refresh_token":
+		return s.CreateRefreshTokenSession(ctx, signature, clientID, requester)
+	case "authorize_code":
+		return s.CreateAuthorizeCodeSession(ctx, signature, requester)
+	default:
+		return fmt.Errorf("unsupported token type: %s", tokenType)
+	}
+}
+
+// GetToken implements the StorageInterface method for retrieving tokens
+func (s *InMemoryStore) GetToken(ctx context.Context, tokenType string, signature string) (interface{}, error) {
+	// Create an empty session for token retrieval
+	session := &openid.DefaultSession{}
+
+	var requester fosite.Requester
+	var err error
+
+	switch tokenType {
+	case "access_token":
+		requester, err = s.GetAccessTokenSession(ctx, signature, session)
+	case "refresh_token":
+		requester, err = s.GetRefreshTokenSession(ctx, signature, session)
+	case "authorize_code":
+		requester, err = s.GetAuthorizeCodeSession(ctx, signature, session)
+	default:
+		return nil, fmt.Errorf("unsupported token type: %s", tokenType)
+	}
+
+	return requester, err
+}
+
+// DeleteToken implements the StorageInterface method for deleting tokens
+func (s *InMemoryStore) DeleteToken(ctx context.Context, tokenType string, signature string) error {
+	switch tokenType {
+	case "access_token":
+		return s.DeleteAccessTokenSession(ctx, signature)
+	case "refresh_token":
+		return s.DeleteRefreshTokenSession(ctx, signature)
+	case "authorize_code":
+		return s.InvalidateAuthorizeCodeSession(ctx, signature)
+	default:
+		return fmt.Errorf("unsupported token type: %s", tokenType)
+	}
+}
+
+// RevokeToken implements the StorageInterface method for revoking tokens
+func (s *InMemoryStore) RevokeToken(ctx context.Context, tokenType string, signature string) error {
+	switch tokenType {
+	case "access_token":
+		return s.RevokeAccessToken(ctx, signature)
+	case "refresh_token":
+		return s.RevokeRefreshToken(ctx, signature)
+	default:
+		return fmt.Errorf("unsupported token type for revocation: %s", tokenType)
+	}
+}
+
+// CreateSession implements the StorageInterface method for creating sessions
+func (s *InMemoryStore) CreateSession(ctx context.Context, sessionType string, id string, data interface{}) error {
+	// Type assertion to ensure data is a fosite.Requester
+	requester, ok := data.(fosite.Requester)
+	if !ok {
+		return fmt.Errorf("invalid data type for session creation, expected fosite.Requester")
+	}
+
+	switch sessionType {
+	case "openid":
+		return s.CreateOpenIDConnectSession(ctx, id, requester)
+	case "pkce":
+		return s.CreatePKCERequestSession(ctx, id, requester)
+	default:
+		return fmt.Errorf("unsupported session type: %s", sessionType)
+	}
+}
+
+// GetSession implements the StorageInterface method for retrieving sessions
+func (s *InMemoryStore) GetSession(ctx context.Context, sessionType string, id string) (interface{}, error) {
+	// Create an empty session for session retrieval
+	session := &openid.DefaultSession{}
+
+	switch sessionType {
+	case "openid":
+		// For GetOpenIDConnectSession, we need a dummy requester
+		dummyRequester := &fosite.Request{Session: session}
+		return s.GetOpenIDConnectSession(ctx, id, dummyRequester)
+	case "pkce":
+		return s.GetPKCERequestSession(ctx, id, session)
+	default:
+		return nil, fmt.Errorf("unsupported session type: %s", sessionType)
+	}
+}
+
+// DeleteSession implements the StorageInterface method for deleting sessions
+func (s *InMemoryStore) DeleteSession(ctx context.Context, sessionType string, id string) error {
+	switch sessionType {
+	case "openid":
+		return s.DeleteOpenIDConnectSession(ctx, id)
+	case "pkce":
+		return s.DeletePKCERequestSession(ctx, id)
+	default:
+		return fmt.Errorf("unsupported session type: %s", sessionType)
+	}
+}
+
+// ValidateJWT implements the StorageInterface method for validating JWTs
+func (s *InMemoryStore) ValidateJWT(ctx context.Context, jti string) error {
+	return s.ClientAssertionJWTValid(ctx, jti)
+}
+
+// MarkJWTAsUsed implements the StorageInterface method for marking JWTs as used
+func (s *InMemoryStore) MarkJWTAsUsed(ctx context.Context, jti string, exp time.Time) error {
+	return s.SetClientAssertionJWT(ctx, jti, exp)
+}
+
 // Ensure InMemoryStore implements all required interfaces
 var (
-	_ fosite.Storage                  = (*InMemoryStore)(nil)
-	_ fosite.ClientManager            = (*InMemoryStore)(nil)
+	_ fosite.Storage                     = (*InMemoryStore)(nil)
+	_ fosite.ClientManager               = (*InMemoryStore)(nil)
 	_ openid.OpenIDConnectRequestStorage = (*InMemoryStore)(nil)
-	_ oauth2.CoreStorage              = (*InMemoryStore)(nil)
-	_ oauth2.TokenRevocationStorage   = (*InMemoryStore)(nil)
+	_ oauth2.CoreStorage                 = (*InMemoryStore)(nil)
+	_ oauth2.TokenRevocationStorage      = (*InMemoryStore)(nil)
+	_ StorageInterface                   = (*InMemoryStore)(nil) // Ensure our store implements our generic interface
 )
