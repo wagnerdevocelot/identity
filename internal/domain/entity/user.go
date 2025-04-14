@@ -3,41 +3,65 @@ package entity
 
 import (
 	"errors"
+	"regexp"
 	"time"
 )
 
+// Expressão regular para validação básica de email
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
 // User representa um usuário do sistema.
 type User struct {
-	ID             string
-	Username       string
-	Email          string
-	HashedPassword string
-	FirstName      string
-	LastName       string
-	Active         bool
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	LastLoginAt    *time.Time
+	ID             string     // Identificador único do usuário
+	Username       string     // Nome de usuário para login
+	Email          string     // Email do usuário
+	HashedPassword string     // Senha hash do usuário (nunca armazenar em texto plano)
+	FirstName      string     // Primeiro nome do usuário
+	LastName       string     // Sobrenome do usuário
+	Active         bool       // Status de ativação da conta
+	CreatedAt      time.Time  // Data e hora de criação da conta
+	UpdatedAt      time.Time  // Data e hora da última atualização
+	LastLoginAt    *time.Time // Data e hora do último login (ponteiro para indicar valores nulos)
 }
 
 // Errors
 var (
-	ErrInvalidUsername = errors.New("nome de usuário inválido")
-	ErrInvalidEmail    = errors.New("email inválido")
-	ErrInvalidPassword = errors.New("senha inválida")
+	ErrInvalidUsername       = errors.New("nome de usuário inválido")
+	ErrInvalidEmail          = errors.New("formato de email inválido")
+	ErrInvalidPassword       = errors.New("senha inválida")
+	ErrPasswordTooShort      = errors.New("senha deve ter pelo menos 8 caracteres")
+	ErrUsernameAlreadyExists = errors.New("nome de usuário já está em uso")
+	ErrEmailAlreadyExists    = errors.New("email já está em uso")
 )
+
+// isValidEmail verifica se um email tem formato válido
+func isValidEmail(email string) bool {
+	if email == "" {
+		return false
+	}
+	return emailRegex.MatchString(email)
+}
+
+// isValidPassword verifica se a senha atende aos requisitos mínimos
+// Nota: Este é um exemplo básico. Em produção, você pode querer regras mais rigorosas.
+func isValidPassword(password string) bool {
+	return len(password) >= 8
+}
 
 // NewUser cria uma nova instância de User.
 func NewUser(id, username, email, hashedPassword string) (*User, error) {
-	// Validação básica
+	// Validação de username
 	if username == "" {
 		return nil, ErrInvalidUsername
 	}
 
-	if email == "" {
+	// Validação de email
+	if !isValidEmail(email) {
 		return nil, ErrInvalidEmail
 	}
 
+	// Validação de senha
+	// Nota: Assumimos que a senha já esteja validada antes de ser hasheada
 	if hashedPassword == "" {
 		return nil, ErrInvalidPassword
 	}
@@ -79,13 +103,26 @@ func (u *User) FullName() string {
 
 // UpdateProfile atualiza as informações de perfil do usuário.
 func (u *User) UpdateProfile(firstName, lastName, email string) error {
-	if email == "" {
+	if !isValidEmail(email) {
 		return ErrInvalidEmail
 	}
 
 	u.FirstName = firstName
 	u.LastName = lastName
 	u.Email = email
+	u.UpdatedAt = time.Now()
+
+	return nil
+}
+
+// ChangePassword atualiza a senha do usuário.
+// O parâmetro hashedPassword deve ser o hash da nova senha, não a senha em texto plano.
+func (u *User) ChangePassword(hashedPassword string) error {
+	if hashedPassword == "" {
+		return ErrInvalidPassword
+	}
+
+	u.HashedPassword = hashedPassword
 	u.UpdatedAt = time.Now()
 
 	return nil

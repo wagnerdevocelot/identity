@@ -1,0 +1,1740 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>identity: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">identity-go/cmd/identity/main.go (0.0%)</option>
+				
+				<option value="file1">identity-go/internal/domain/entity/user.go (96.7%)</option>
+				
+				<option value="file2">identity-go/internal/infrastructure/auth/oauth2_provider.go (75.0%)</option>
+				
+				<option value="file3">identity-go/internal/infrastructure/storage/memory_store.go (2.8%)</option>
+				
+				<option value="file4">identity-go/internal/interface/http/handlers/oauth_handlers.go (6.2%)</option>
+				
+				<option value="file5">identity-go/internal/usecase/auth/login_usecase.go (0.0%)</option>
+				
+				<option value="file6">identity-go/internal/usecase/token/generate_token_usecase.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// Package main é o ponto de entrada do servidor de identidade.
+package main
+
+import (
+        "context"
+        "log"
+        "net/http"
+        "os"
+        "os/signal"
+        "syscall"
+        "time"
+
+        "identity-go/internal/infrastructure/auth"
+        "identity-go/internal/interface/http/handlers"
+)
+
+func main() <span class="cov0" title="0">{
+        log.Println("Iniciando servidor de identidade na porta 8080...")
+
+        // Carregar a chave secreta do ambiente (exemplo)
+        secretKey := os.Getenv("OAUTH2_SECRET_KEY")
+        if secretKey == "" </span><span class="cov0" title="0">{
+                log.Fatal("Variável de ambiente OAUTH2_SECRET_KEY não definida")
+        }</span>
+
+        // Configurar provedor OAuth2 e armazenamento
+        <span class="cov0" title="0">provider, store := auth.SetupOAuth2Provider([]byte(secretKey))
+
+        // Configurar router HTTP com todos os handlers
+        router := handlers.SetupRouter(provider, store)
+
+        // Configurar servidor HTTP com timeouts adequados
+        srv := &amp;http.Server{
+                Addr:         ":8080",
+                Handler:      router,
+                ReadTimeout:  15 * time.Second,
+                WriteTimeout: 15 * time.Second,
+                IdleTimeout:  60 * time.Second,
+        }
+
+        // Iniciar servidor em uma goroutine separada
+        go func() </span><span class="cov0" title="0">{
+                if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                        log.Fatalf("Erro ao iniciar servidor: %s\n", err)
+                }</span>
+        }()
+
+        <span class="cov0" title="0">log.Println("Servidor rodando. Pressione CTRL+C para desligar.")
+
+        // Canal para receber sinais de interrupção
+        quit := make(chan os.Signal, 1)
+        signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+        // Bloquear até receber sinal
+        &lt;-quit
+
+        log.Println("Desligando servidor graciosamente...")
+
+        // Criar contexto com timeout para shutdown gracioso
+        ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+        defer cancel()
+
+        // Tentar shutdown gracioso
+        if err := srv.Shutdown(ctx); err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Erro durante o desligamento do servidor: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">log.Println("Servidor desligado com sucesso")</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Package entity contém as entidades do domínio.
+package entity
+
+import (
+        "errors"
+        "regexp"
+        "time"
+)
+
+// Expressão regular para validação básica de email
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
+// User representa um usuário do sistema.
+type User struct {
+        ID             string     // Identificador único do usuário
+        Username       string     // Nome de usuário para login
+        Email          string     // Email do usuário
+        HashedPassword string     // Senha hash do usuário (nunca armazenar em texto plano)
+        FirstName      string     // Primeiro nome do usuário
+        LastName       string     // Sobrenome do usuário
+        Active         bool       // Status de ativação da conta
+        CreatedAt      time.Time  // Data e hora de criação da conta
+        UpdatedAt      time.Time  // Data e hora da última atualização
+        LastLoginAt    *time.Time // Data e hora do último login (ponteiro para indicar valores nulos)
+}
+
+// Errors
+var (
+        ErrInvalidUsername       = errors.New("nome de usuário inválido")
+        ErrInvalidEmail          = errors.New("formato de email inválido")
+        ErrInvalidPassword       = errors.New("senha inválida")
+        ErrPasswordTooShort      = errors.New("senha deve ter pelo menos 8 caracteres")
+        ErrUsernameAlreadyExists = errors.New("nome de usuário já está em uso")
+        ErrEmailAlreadyExists    = errors.New("email já está em uso")
+)
+
+// isValidEmail verifica se um email tem formato válido
+func isValidEmail(email string) bool <span class="cov8" title="1">{
+        if email == "" </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">return emailRegex.MatchString(email)</span>
+}
+
+// isValidPassword verifica se a senha atende aos requisitos mínimos
+// Nota: Este é um exemplo básico. Em produção, você pode querer regras mais rigorosas.
+func isValidPassword(password string) bool <span class="cov0" title="0">{
+        return len(password) &gt;= 8
+}</span>
+
+// NewUser cria uma nova instância de User.
+func NewUser(id, username, email, hashedPassword string) (*User, error) <span class="cov8" title="1">{
+        // Validação de username
+        if username == "" </span><span class="cov8" title="1">{
+                return nil, ErrInvalidUsername
+        }</span>
+
+        // Validação de email
+        <span class="cov8" title="1">if !isValidEmail(email) </span><span class="cov8" title="1">{
+                return nil, ErrInvalidEmail
+        }</span>
+
+        // Validação de senha
+        // Nota: Assumimos que a senha já esteja validada antes de ser hasheada
+        <span class="cov8" title="1">if hashedPassword == "" </span><span class="cov8" title="1">{
+                return nil, ErrInvalidPassword
+        }</span>
+
+        <span class="cov8" title="1">now := time.Now()
+
+        return &amp;User{
+                ID:             id,
+                Username:       username,
+                Email:          email,
+                HashedPassword: hashedPassword,
+                Active:         true,
+                CreatedAt:      now,
+                UpdatedAt:      now,
+        }, nil</span>
+}
+
+// IsActive verifica se o usuário está ativo no sistema.
+func (u *User) IsActive() bool <span class="cov8" title="1">{
+        return u.Active
+}</span>
+
+// SetActive atualiza o status ativo do usuário.
+func (u *User) SetActive(active bool) <span class="cov8" title="1">{
+        u.Active = active
+        u.UpdatedAt = time.Now()
+}</span>
+
+// SetLastLogin atualiza o timestamp do último login.
+func (u *User) SetLastLogin(t time.Time) <span class="cov8" title="1">{
+        u.LastLoginAt = &amp;t
+        u.UpdatedAt = time.Now()
+}</span>
+
+// FullName retorna o nome completo do usuário.
+func (u *User) FullName() string <span class="cov8" title="1">{
+        return u.FirstName + " " + u.LastName
+}</span>
+
+// UpdateProfile atualiza as informações de perfil do usuário.
+func (u *User) UpdateProfile(firstName, lastName, email string) error <span class="cov8" title="1">{
+        if !isValidEmail(email) </span><span class="cov8" title="1">{
+                return ErrInvalidEmail
+        }</span>
+
+        <span class="cov8" title="1">u.FirstName = firstName
+        u.LastName = lastName
+        u.Email = email
+        u.UpdatedAt = time.Now()
+
+        return nil</span>
+}
+
+// ChangePassword atualiza a senha do usuário.
+// O parâmetro hashedPassword deve ser o hash da nova senha, não a senha em texto plano.
+func (u *User) ChangePassword(hashedPassword string) error <span class="cov8" title="1">{
+        if hashedPassword == "" </span><span class="cov8" title="1">{
+                return ErrInvalidPassword
+        }</span>
+
+        <span class="cov8" title="1">u.HashedPassword = hashedPassword
+        u.UpdatedAt = time.Now()
+
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">// Package auth contém implementações relacionadas à autenticação e autorização.
+package auth
+
+import (
+        "context"
+        "crypto/rand"
+        "crypto/rsa"
+        "log"
+        "time"
+
+        "identity-go/internal/infrastructure/storage"
+
+        "github.com/ory/fosite"
+        "github.com/ory/fosite/compose"
+)
+
+// SetupOAuth2Provider configura e retorna um provedor OAuth2 com todas as suas dependências
+// jwtSecret é a chave secreta usada para assinar tokens JWT. Deve ter 32 bytes.
+func SetupOAuth2Provider(jwtSecret []byte) (fosite.OAuth2Provider, *storage.InMemoryStore) <span class="cov8" title="1">{
+        // Inicializar o armazenamento
+        store := storage.NewInMemoryStore()
+
+        // Configuração do Fosite usando fosite.Config (v0.49.0+)
+        fositeConfig := &amp;fosite.Config{
+                AccessTokenLifespan:            time.Minute * 30,
+                AuthorizeCodeLifespan:          time.Minute * 10,
+                RefreshTokenLifespan:           time.Hour * 24 * 7,
+                SendDebugMessagesToClients:     true,
+                ScopeStrategy:                  fosite.HierarchicScopeStrategy,
+                AudienceMatchingStrategy:       fosite.DefaultAudienceMatchingStrategy,
+                RedirectSecureChecker:          fosite.IsRedirectURISecureStrict,
+                MinParameterEntropy:            fosite.MinParameterEntropy,
+                EnforcePKCE:                    false,
+                EnablePKCEPlainChallengeMethod: false,
+                TokenURL:                       "http://localhost:8080/oauth2/token",
+                GlobalSecret:                   jwtSecret,
+        }
+
+        // Gerar chave RSA para assinatura de JWTs (Tokens de ID)
+        privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Falha ao gerar chave RSA: %v", err)
+        }</span>
+
+        // Inicializar o provedor usando compose.Compose
+        <span class="cov8" title="1">provider := compose.Compose(
+                fositeConfig,
+                store,
+                // Configurar estratégias usando CommonStrategy
+                &amp;compose.CommonStrategy{
+                        CoreStrategy:               compose.NewOAuth2HMACStrategy(fositeConfig),
+                        OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(func(ctx context.Context) (interface{}, error) </span><span class="cov0" title="0">{ return privateKey, nil }</span>, fositeConfig),
+                },
+
+                // Lista de Handler Factories habilitados:
+                compose.OAuth2AuthorizeExplicitFactory,
+                compose.OAuth2AuthorizeImplicitFactory,
+                compose.OAuth2ClientCredentialsGrantFactory,
+                compose.OAuth2RefreshTokenGrantFactory,
+                compose.OAuth2TokenIntrospectionFactory,
+                compose.OAuth2TokenRevocationFactory,
+
+                compose.OpenIDConnectExplicitFactory,
+                compose.OpenIDConnectImplicitFactory,
+                compose.OpenIDConnectHybridFactory,
+                compose.OpenIDConnectRefreshFactory,
+
+                compose.OAuth2PKCEFactory,
+        )
+
+        <span class="cov8" title="1">return provider, store</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">// Package storage contém as implementações de armazenamento de dados.
+package storage
+
+import (
+        "context"
+        "fmt"
+        "log"
+        "sync"
+        "time"
+
+        "github.com/ory/fosite"
+        "github.com/ory/fosite/handler/openid"
+        "golang.org/x/crypto/bcrypt"
+)
+
+// InMemoryStore fornece uma implementação simples em memória das interfaces de armazenamento do Fosite.
+// AVISO: Isso é apenas para fins de demonstração. Use um armazenamento persistente em produção.
+type InMemoryStore struct {
+        Clients        map[string]fosite.Client
+        AuthorizeCodes map[string]fosite.Requester
+        AccessTokens   map[string]fosite.Requester
+        RefreshTokens  map[string]map[string]fosite.Requester
+        OIDCSessions   map[string]fosite.Requester
+        PKCESessions   map[string]fosite.Requester
+        Mutex          sync.RWMutex
+        UsedJTIs       map[string]time.Time
+}
+
+// NewInMemoryStore inicializa um novo armazenamento em memória.
+func NewInMemoryStore() *InMemoryStore <span class="cov8" title="1">{
+        store := &amp;InMemoryStore{
+                Clients:        make(map[string]fosite.Client),
+                AuthorizeCodes: make(map[string]fosite.Requester),
+                AccessTokens:   make(map[string]fosite.Requester),
+                RefreshTokens:  make(map[string]map[string]fosite.Requester),
+                OIDCSessions:   make(map[string]fosite.Requester),
+                PKCESessions:   make(map[string]fosite.Requester),
+                UsedJTIs:       make(map[string]time.Time),
+        }
+
+        // Hash do segredo do cliente usando bcrypt diretamente
+        hashedSecret, err := bcrypt.GenerateFromPassword([]byte("foobar"), bcrypt.DefaultCost)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Falha ao gerar hash do segredo do cliente: %v", err)
+        }</span>
+        // Definição corrigida para my-test-client usando DefaultOpenIDConnectClient
+        <span class="cov8" title="1">store.Clients["my-test-client"] = &amp;fosite.DefaultOpenIDConnectClient{
+                DefaultClient: &amp;fosite.DefaultClient{
+                        ID:            "my-test-client",
+                        Secret:        hashedSecret, // Usa o segredo com hash
+                        RedirectURIs:  []string{"http://localhost:3000/callback", "http://127.0.0.1:3000/callback"},
+                        GrantTypes:    fosite.Arguments{"authorization_code", "refresh_token", "client_credentials"},
+                        ResponseTypes: fosite.Arguments{"code", "token", "id_token", "code id_token", "code token", "id_token token", "code id_token token"},
+                        Scopes:        fosite.Arguments{"openid", "profile", "email", "offline"},
+                        Audience:      fosite.Arguments{"https://my-api.com"},
+                        Public:        false,
+                },
+                JSONWebKeysURI:          "",
+                TokenEndpointAuthMethod: "client_secret_basic",
+                RequestURIs:             []string{},
+        }
+
+        return store</span>
+}
+
+// GetClient recupera um cliente pelo seu ID.
+func (s *InMemoryStore) GetClient(ctx context.Context, id string) (fosite.Client, error) <span class="cov0" title="0">{
+        s.Mutex.RLock()
+        defer s.Mutex.RUnlock()
+        client, ok := s.Clients[id]
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("%w: Cliente com ID %s não encontrado", fosite.ErrNotFound, id)
+        }</span>
+        <span class="cov0" title="0">return client, nil</span>
+}
+
+// ClientAssertionJWTValid verifica se um ID JWT de asserção de cliente é válido.
+func (s *InMemoryStore) ClientAssertionJWTValid(ctx context.Context, jti string) error <span class="cov0" title="0">{
+        s.Mutex.RLock()
+        defer s.Mutex.RUnlock()
+        if exp, exists := s.UsedJTIs[jti]; exists </span><span class="cov0" title="0">{
+                if time.Now().After(exp) </span><span class="cov0" title="0">{
+                        // JTI expirado, trate como desconhecido
+                        delete(s.UsedJTIs, jti) // Limpa JTI expirado
+                        return nil
+                }</span>
+                // JTI existe e não expirou, então já foi usado.
+                <span class="cov0" title="0">return fmt.Errorf("%w: JTI %s já foi utilizado", fosite.ErrJTIKnown, jti)</span>
+        }
+        // JTI não existe, então é válido.
+        <span class="cov0" title="0">return nil</span>
+}
+
+// SetClientAssertionJWT marca um ID JWT de asserção de cliente como usado.
+func (s *InMemoryStore) SetClientAssertionJWT(ctx context.Context, jti string, exp time.Time) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        if currentExp, exists := s.UsedJTIs[jti]; exists </span><span class="cov0" title="0">{
+                // Deveria ser detectado por ClientAssertionJWTValid, mas verifica novamente.
+                if time.Now().Before(currentExp) </span><span class="cov0" title="0">{
+                        return fmt.Errorf("%w: Tentativa de definir JTI já usado %s", fosite.ErrJTIKnown, jti)
+                }</span>
+        }
+        // Armazena o JTI com seu tempo de expiração
+        <span class="cov0" title="0">s.UsedJTIs[jti] = exp
+        log.Printf("Marcado JTI %s como usado até %v", jti, exp)
+        return nil</span>
+}
+
+// CreateAuthorizeCodeSession armazena uma sessão de código de autorização.
+func (s *InMemoryStore) CreateAuthorizeCodeSession(ctx context.Context, code string, request fosite.Requester) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        s.AuthorizeCodes[code] = request
+        return nil
+}</span>
+
+// GetAuthorizeCodeSession recupera uma sessão de código de autorização.
+func (s *InMemoryStore) GetAuthorizeCodeSession(ctx context.Context, code string, session fosite.Session) (fosite.Requester, error) <span class="cov0" title="0">{
+        s.Mutex.RLock()
+        defer s.Mutex.RUnlock()
+        req, ok := s.AuthorizeCodes[code]
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("%w: Código de autorização não encontrado", fosite.ErrNotFound)
+        }</span>
+        <span class="cov0" title="0">return req, nil</span>
+}
+
+// InvalidateAuthorizeCodeSession marca uma sessão de código de autorização como inválida (usada).
+func (s *InMemoryStore) InvalidateAuthorizeCodeSession(ctx context.Context, code string) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        delete(s.AuthorizeCodes, code)
+        return nil
+}</span>
+
+// CreateAccessTokenSession armazena uma sessão de token de acesso.
+func (s *InMemoryStore) CreateAccessTokenSession(ctx context.Context, signature string, request fosite.Requester) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        s.AccessTokens[signature] = request
+        return nil
+}</span>
+
+// GetAccessTokenSession recupera uma sessão de token de acesso.
+func (s *InMemoryStore) GetAccessTokenSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) <span class="cov0" title="0">{
+        s.Mutex.RLock()
+        defer s.Mutex.RUnlock()
+        req, ok := s.AccessTokens[signature]
+        log.Printf("[GetAccessTokenSession] Buscando assinatura: %s. Encontrado? %v", signature, ok)
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("%w: Token de acesso não encontrado", fosite.ErrNotFound)
+        }</span>
+        <span class="cov0" title="0">return req, nil</span>
+}
+
+// DeleteAccessTokenSession exclui uma sessão de token de acesso.
+func (s *InMemoryStore) DeleteAccessTokenSession(ctx context.Context, signature string) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        log.Printf("[DeleteAccessTokenSession] Tentando excluir assinatura: %s. Existe? %v", signature, s.AccessTokens[signature] != nil)
+        delete(s.AccessTokens, signature)
+        log.Printf("[DeleteAccessTokenSession] Após exclusão para assinatura: %s. Existe? %v", signature, s.AccessTokens[signature] != nil)
+        return nil
+}</span>
+
+// RevokeAccessToken implementa a lógica de revogação para tokens de acesso.
+func (s *InMemoryStore) RevokeAccessToken(ctx context.Context, signature string) error <span class="cov0" title="0">{
+        log.Printf("Revogando token de acesso com assinatura: %s", signature)
+        return s.DeleteAccessTokenSession(ctx, signature)
+}</span>
+
+// -- Métodos para RefreshTokenStorage --
+
+// CreateRefreshTokenSession armazena uma sessão de token de atualização.
+func (s *InMemoryStore) CreateRefreshTokenSession(ctx context.Context, signature string, clientID string, request fosite.Requester) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        if _, ok := s.RefreshTokens[clientID]; !ok </span><span class="cov0" title="0">{
+                s.RefreshTokens[clientID] = make(map[string]fosite.Requester)
+        }</span>
+        <span class="cov0" title="0">s.RefreshTokens[clientID][signature] = request
+        return nil</span>
+}
+
+// GetRefreshTokenSession recupera uma sessão de token de atualização pela assinatura.
+func (s *InMemoryStore) GetRefreshTokenSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) <span class="cov0" title="0">{
+        s.Mutex.RLock()
+        defer s.Mutex.RUnlock()
+        // Itera por todos os clientes para encontrar a assinatura
+        for _, clientTokens := range s.RefreshTokens </span><span class="cov0" title="0">{
+                if req, ok := clientTokens[signature]; ok </span><span class="cov0" title="0">{
+                        // Encontrou o requirente associado à assinatura
+                        return req, nil
+                }</span>
+        }
+        // Assinatura não encontrada em nenhum mapa de tokens do cliente
+        <span class="cov0" title="0">return nil, fmt.Errorf("%w: Token de atualização não encontrado para assinatura %s", fosite.ErrNotFound, signature)</span>
+}
+
+// DeleteRefreshTokenSession exclui uma sessão de token de atualização pela assinatura.
+func (s *InMemoryStore) DeleteRefreshTokenSession(ctx context.Context, signature string) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        // Itera por todos os clientes para encontrar e excluir a assinatura
+        found := false
+        for clientID, clientTokens := range s.RefreshTokens </span><span class="cov0" title="0">{
+                if _, ok := clientTokens[signature]; ok </span><span class="cov0" title="0">{
+                        delete(s.RefreshTokens[clientID], signature)
+                        found = true
+                        // Limpa o mapa de cliente vazio se necessário (opcional)
+                        if len(s.RefreshTokens[clientID]) == 0 </span><span class="cov0" title="0">{
+                                delete(s.RefreshTokens, clientID)
+                        }</span>
+                        <span class="cov0" title="0">break</span> // Assume que a assinatura é única entre os clientes
+                }
+        }
+        <span class="cov0" title="0">if !found </span><span class="cov0" title="0">{
+                log.Printf("Tentativa de excluir assinatura de token de atualização inexistente: %s", signature)
+        }</span>
+        <span class="cov0" title="0">return nil</span> // Nenhum erro necessário se não for encontrado
+}
+
+// RotateRefreshToken implementa a rotação do token de atualização.
+func (s *InMemoryStore) RotateRefreshToken(ctx context.Context, signature string, clientID string) error <span class="cov0" title="0">{
+        log.Printf("Rotacionando (excluindo) token de atualização com assinatura: %s (para cliente: %s)", signature, clientID)
+        return s.DeleteRefreshTokenSession(ctx, signature)
+}</span>
+
+// RevokeRefreshToken implementa a lógica de revogação para tokens de atualização.
+func (s *InMemoryStore) RevokeRefreshToken(ctx context.Context, signature string) error <span class="cov0" title="0">{
+        log.Printf("Revogando token de atualização com assinatura: %s", signature)
+        return s.DeleteRefreshTokenSession(ctx, signature)
+}</span>
+
+// CreateOpenIDConnectSession armazena uma sessão OIDC.
+func (s *InMemoryStore) CreateOpenIDConnectSession(ctx context.Context, authorizeCode string, request fosite.Requester) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        s.OIDCSessions[authorizeCode] = request
+        return nil
+}</span>
+
+// GetOpenIDConnectSession recupera uma sessão OIDC.
+func (s *InMemoryStore) GetOpenIDConnectSession(ctx context.Context, authorizeCode string, requester fosite.Requester) (fosite.Requester, error) <span class="cov0" title="0">{
+        s.Mutex.RLock()
+        defer s.Mutex.RUnlock()
+        req, ok := s.OIDCSessions[authorizeCode]
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("%w: Sessão OIDC não encontrada para código de autorização %s", fosite.ErrNotFound, authorizeCode)
+        }</span>
+        <span class="cov0" title="0">return req, nil</span>
+}
+
+// DeleteOpenIDConnectSession exclui uma sessão OIDC.
+func (s *InMemoryStore) DeleteOpenIDConnectSession(ctx context.Context, authorizeCode string) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        delete(s.OIDCSessions, authorizeCode)
+        return nil
+}</span>
+
+// -- Métodos para Armazenamento de Requisições PKCE --
+
+// GetPKCERequestSession recupera uma sessão de requisição PKCE.
+func (s *InMemoryStore) GetPKCERequestSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) <span class="cov0" title="0">{
+        s.Mutex.RLock()
+        defer s.Mutex.RUnlock()
+        req, ok := s.PKCESessions[signature]
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("%w: Sessão PKCE não encontrada para assinatura %s", fosite.ErrNotFound, signature)
+        }</span>
+        <span class="cov0" title="0">return req, nil</span>
+}
+
+// CreatePKCERequestSession armazena uma sessão de requisição PKCE.
+func (s *InMemoryStore) CreatePKCERequestSession(ctx context.Context, signature string, requester fosite.Requester) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        s.PKCESessions[signature] = requester
+        return nil
+}</span>
+
+// DeletePKCERequestSession exclui uma sessão de requisição PKCE.
+func (s *InMemoryStore) DeletePKCERequestSession(ctx context.Context, signature string) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        delete(s.PKCESessions, signature)
+        return nil
+}</span>
+
+// -- Operações CRUD de Client --
+
+// CreateClient implementa o método StorageInterface para criar um cliente
+func (s *InMemoryStore) CreateClient(ctx context.Context, client fosite.Client) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+        s.Clients[client.GetID()] = client
+        return nil
+}</span>
+
+// UpdateClient implementa o método StorageInterface para atualizar um cliente
+func (s *InMemoryStore) UpdateClient(ctx context.Context, client fosite.Client) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+
+        // Verifica se o cliente existe
+        if _, ok := s.Clients[client.GetID()]; !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("%w: cliente com ID %s não encontrado", fosite.ErrNotFound, client.GetID())
+        }</span>
+
+        // Atualiza o cliente
+        <span class="cov0" title="0">s.Clients[client.GetID()] = client
+        return nil</span>
+}
+
+// DeleteClient implementa o método StorageInterface para excluir um cliente
+func (s *InMemoryStore) DeleteClient(ctx context.Context, id string) error <span class="cov0" title="0">{
+        s.Mutex.Lock()
+        defer s.Mutex.Unlock()
+
+        // Verifica se o cliente existe
+        if _, ok := s.Clients[id]; !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("%w: cliente com ID %s não encontrado", fosite.ErrNotFound, id)
+        }</span>
+
+        // Exclui o cliente
+        <span class="cov0" title="0">delete(s.Clients, id)
+        return nil</span>
+}
+
+// -- Métodos para Tokens em geral --
+
+// CreateToken implementa o método para criar tokens
+func (s *InMemoryStore) CreateToken(ctx context.Context, tokenType string, signature string, clientID string, data interface{}) error <span class="cov0" title="0">{
+        // Type assertion para garantir que os dados sejam um fosite.Requester
+        requester, ok := data.(fosite.Requester)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("tipo de dados inválido para criação de token, esperado fosite.Requester")
+        }</span>
+
+        <span class="cov0" title="0">switch tokenType </span>{
+        case "access_token":<span class="cov0" title="0">
+                return s.CreateAccessTokenSession(ctx, signature, requester)</span>
+        case "refresh_token":<span class="cov0" title="0">
+                return s.CreateRefreshTokenSession(ctx, signature, clientID, requester)</span>
+        case "authorize_code":<span class="cov0" title="0">
+                return s.CreateAuthorizeCodeSession(ctx, signature, requester)</span>
+        default:<span class="cov0" title="0">
+                return fmt.Errorf("tipo de token não suportado: %s", tokenType)</span>
+        }
+}
+
+// GetToken implementa o método para recuperar tokens
+func (s *InMemoryStore) GetToken(ctx context.Context, tokenType string, signature string) (interface{}, error) <span class="cov0" title="0">{
+        // Cria uma sessão vazia para recuperação de token
+        session := &amp;openid.DefaultSession{}
+
+        var requester fosite.Requester
+        var err error
+
+        switch tokenType </span>{
+        case "access_token":<span class="cov0" title="0">
+                requester, err = s.GetAccessTokenSession(ctx, signature, session)</span>
+        case "refresh_token":<span class="cov0" title="0">
+                requester, err = s.GetRefreshTokenSession(ctx, signature, session)</span>
+        case "authorize_code":<span class="cov0" title="0">
+                requester, err = s.GetAuthorizeCodeSession(ctx, signature, session)</span>
+        default:<span class="cov0" title="0">
+                return nil, fmt.Errorf("tipo de token não suportado: %s", tokenType)</span>
+        }
+
+        <span class="cov0" title="0">return requester, err</span>
+}
+
+// DeleteToken implementa o método para excluir tokens
+func (s *InMemoryStore) DeleteToken(ctx context.Context, tokenType string, signature string) error <span class="cov0" title="0">{
+        switch tokenType </span>{
+        case "access_token":<span class="cov0" title="0">
+                return s.DeleteAccessTokenSession(ctx, signature)</span>
+        case "refresh_token":<span class="cov0" title="0">
+                return s.DeleteRefreshTokenSession(ctx, signature)</span>
+        case "authorize_code":<span class="cov0" title="0">
+                return s.InvalidateAuthorizeCodeSession(ctx, signature)</span>
+        default:<span class="cov0" title="0">
+                return fmt.Errorf("tipo de token não suportado: %s", tokenType)</span>
+        }
+}
+
+// RevokeToken implementa o método para revogar tokens
+func (s *InMemoryStore) RevokeToken(ctx context.Context, tokenType string, signature string) error <span class="cov0" title="0">{
+        switch tokenType </span>{
+        case "access_token":<span class="cov0" title="0">
+                return s.RevokeAccessToken(ctx, signature)</span>
+        case "refresh_token":<span class="cov0" title="0">
+                return s.RevokeRefreshToken(ctx, signature)</span>
+        default:<span class="cov0" title="0">
+                return fmt.Errorf("tipo de token não suportado para revogação: %s", tokenType)</span>
+        }
+}
+
+// -- Métodos para Sessões --
+
+// CreateSession implementa o método para criar sessões
+func (s *InMemoryStore) CreateSession(ctx context.Context, sessionType string, id string, data interface{}) error <span class="cov0" title="0">{
+        // Type assertion para garantir que os dados sejam um fosite.Requester
+        requester, ok := data.(fosite.Requester)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("tipo de dados inválido para criação de sessão, esperado fosite.Requester")
+        }</span>
+
+        <span class="cov0" title="0">switch sessionType </span>{
+        case "openid":<span class="cov0" title="0">
+                return s.CreateOpenIDConnectSession(ctx, id, requester)</span>
+        case "pkce":<span class="cov0" title="0">
+                return s.CreatePKCERequestSession(ctx, id, requester)</span>
+        default:<span class="cov0" title="0">
+                return fmt.Errorf("tipo de sessão não suportado: %s", sessionType)</span>
+        }
+}
+
+// GetSession implementa o método para recuperar sessões
+func (s *InMemoryStore) GetSession(ctx context.Context, sessionType string, id string) (interface{}, error) <span class="cov0" title="0">{
+        // Cria uma sessão vazia para recuperação de sessão
+        session := &amp;openid.DefaultSession{}
+
+        switch sessionType </span>{
+        case "openid":<span class="cov0" title="0">
+                // Para GetOpenIDConnectSession, precisamos de um requester fake
+                dummyRequester := &amp;fosite.Request{Session: session}
+                return s.GetOpenIDConnectSession(ctx, id, dummyRequester)</span>
+        case "pkce":<span class="cov0" title="0">
+                return s.GetPKCERequestSession(ctx, id, session)</span>
+        default:<span class="cov0" title="0">
+                return nil, fmt.Errorf("tipo de sessão não suportado: %s", sessionType)</span>
+        }
+}
+
+// DeleteSession implementa o método para excluir sessões
+func (s *InMemoryStore) DeleteSession(ctx context.Context, sessionType string, id string) error <span class="cov0" title="0">{
+        switch sessionType </span>{
+        case "openid":<span class="cov0" title="0">
+                return s.DeleteOpenIDConnectSession(ctx, id)</span>
+        case "pkce":<span class="cov0" title="0">
+                return s.DeletePKCERequestSession(ctx, id)</span>
+        default:<span class="cov0" title="0">
+                return fmt.Errorf("tipo de sessão não suportado: %s", sessionType)</span>
+        }
+}
+
+// ValidateJWT implementa o método para validar JWTs
+func (s *InMemoryStore) ValidateJWT(ctx context.Context, jti string) error <span class="cov0" title="0">{
+        return s.ClientAssertionJWTValid(ctx, jti)
+}</span>
+
+// MarkJWTAsUsed implementa o método para marcar JWTs como usados
+func (s *InMemoryStore) MarkJWTAsUsed(ctx context.Context, jti string, exp time.Time) error <span class="cov0" title="0">{
+        return s.SetClientAssertionJWT(ctx, jti, exp)
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">// Package handlers contém os controladores HTTP para a aplicação.
+package handlers
+
+import (
+        "crypto/rand"
+        "encoding/base64"
+        "fmt"
+        "html/template"
+        "log"
+        "net/http"
+        "net/url"
+        "os"
+        "path/filepath"
+        "time"
+
+        "github.com/ory/fosite"
+        "github.com/ory/fosite/handler/openid"
+        "github.com/ory/fosite/token/jwt"
+)
+
+// Estrutura para armazenar os handlers e suas dependências
+type OAuth2Handler struct {
+        Provider  fosite.OAuth2Provider
+        Store     interface{} // Será tipada conforme a interface específica
+        Templates *template.Template
+        Sessions  map[string]*Session // Temporário, substituir por implementação de sessão mais robusta
+}
+
+// Session armazena informações sobre a sessão do usuário e a requisição de autenticação em andamento.
+// AVISO: Esta é uma sessão em memória simplista para demonstração.
+// Use um mecanismo de sessão seguro e persistente em produção (como gorilla/sessions, com banco de dados).
+type Session struct {
+        UserID          string
+        AuthenticatedAt time.Time
+        ConsentGranted  bool   // Flag para verificar se o consentimento foi dado para esta requisição
+        OriginalAuthURL string // Armazena a URL original da requisição /oauth2/auth
+        RequestedScopes []string
+        GrantedScopes   []string
+        ClientID        string
+        Form            url.Values // Armazena valores de formulário da página de consentimento
+        CSRFToken       string     // Adicionado para proteção CSRF
+}
+
+// NewOAuth2Handler cria um novo handler OAuth2 com suas dependências
+func NewOAuth2Handler(provider fosite.OAuth2Provider, store interface{}) *OAuth2Handler <span class="cov8" title="1">{
+        // Verificar se existe uma variável de ambiente para o caminho dos templates
+        templatesPath := os.Getenv("TEMPLATES_PATH")
+        if templatesPath == "" </span><span class="cov0" title="0">{
+                // Se não houver variável de ambiente, usar o caminho relativo padrão
+                templatesPath = "templates"
+        }</span>
+
+        // Montar o padrão de busca para os templates
+        <span class="cov8" title="1">templatesPattern := filepath.Join(templatesPath, "*.html")
+
+        templates, err := template.ParseGlob(templatesPattern)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("Falha ao analisar templates: %v", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;OAuth2Handler{
+                Provider:  provider,
+                Store:     store,
+                Templates: templates,
+                Sessions:  make(map[string]*Session),
+        }</span>
+}
+
+// GenerateCSRFToken cria um token CSRF aleatório.
+func GenerateCSRFToken() (string, error) <span class="cov0" title="0">{
+        b := make([]byte, 32)
+        _, err := rand.Read(b)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+        <span class="cov0" title="0">return base64.StdEncoding.EncodeToString(b), nil</span>
+}
+
+// SetupRouter configura todas as rotas HTTP da aplicação
+func SetupRouter(provider fosite.OAuth2Provider, store interface{}) http.Handler <span class="cov8" title="1">{
+        handler := NewOAuth2Handler(provider, store)
+
+        mux := http.NewServeMux()
+        mux.HandleFunc("/oauth2/auth", handler.AuthEndpoint)
+        mux.HandleFunc("/oauth2/token", handler.TokenEndpoint)
+        mux.HandleFunc("/oauth2/introspect", handler.IntrospectionEndpoint)
+        mux.HandleFunc("/oauth2/revoke", handler.RevocationEndpoint)
+        mux.HandleFunc("/login", handler.LoginHandler)
+        mux.HandleFunc("/consent", handler.ConsentHandler)
+
+        return mux
+}</span>
+
+// AuthEndpoint lida com as requisições de autorização OAuth 2.0 (/oauth2/auth)
+func (h *OAuth2Handler) AuthEndpoint(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx := r.Context()
+
+        // Analisar a requisição de autorização
+        ar, err := h.Provider.NewAuthorizeRequest(ctx, r)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Erro ocorrido em NewAuthorizeRequest: %+v", err)
+                h.Provider.WriteAuthorizeError(ctx, w, ar, err)
+                return
+        }</span>
+
+        // --- Verificação de Autenticação do Usuário ---
+        <span class="cov0" title="0">session := h.getUserSession(r)
+        if session == nil || session.UserID == "" </span><span class="cov0" title="0">{
+                // Usuário não autenticado, redireciona para página de login.
+                // Armazena os detalhes da requisição original para redirecionamento após o login.
+                loginSessionID := "login_session_" + fmt.Sprint(time.Now().UnixNano()) // ID único simples
+                csrf, err := GenerateCSRFToken()
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "Falha ao gerar token CSRF", http.StatusInternalServerError)
+                        return
+                }</span>
+                <span class="cov0" title="0">loginSess := &amp;Session{
+                        OriginalAuthURL: r.URL.String(), // Armazena a URL auth completa
+                        CSRFToken:       csrf,
+                }
+                h.createOrUpdateSession(w, r, loginSessionID, loginSess) // Passar 'r'
+
+                // Redireciona para login, passando o ID de sessão temporário
+                http.Redirect(w, r, "/login?session_id="+loginSessionID, http.StatusFound)
+                return</span>
+        }
+
+        // --- Verificação de Consentimento ---
+        // Em um app real, você verificaria se o usuário já consentiu anteriormente
+        // a estes escopos para este cliente. Se prompt=consent for solicitado, sempre mostre consentimento.
+        <span class="cov0" title="0">needsConsent := true // Assume que o consentimento é necessário para simplicidade
+
+        // Exemplo: Verificar se *apenas* openid foi solicitado e talvez auto-conceder
+        if len(ar.GetRequestedScopes()) == 1 &amp;&amp; ar.GetRequestedScopes().Has("openid") </span>{<span class="cov0" title="0">
+                // needsConsent = false // Descomente para auto-conceder se apenas 'openid'
+                // ar.GrantScope("openid")
+        }</span>
+
+        <span class="cov0" title="0">prompt := ar.GetRequestForm().Get("prompt")
+        if prompt == "consent" </span><span class="cov0" title="0">{
+                needsConsent = true
+        }</span>
+
+        // Obter informações do cliente para a página de consentimento
+        // O cliente é obtido através do armazenamento (Store) que deve implementar fosite.ClientManager
+        <span class="cov0" title="0">clientStore, ok := h.Store.(fosite.ClientManager)
+        if !ok </span><span class="cov0" title="0">{
+                log.Printf("Erro interno: O armazenamento configurado não implementa fosite.ClientManager")
+                h.Provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError.WithHint("Erro interno do servidor."))
+                return
+        }</span>
+        <span class="cov0" title="0">clientID := ar.GetClient().GetID()
+        client, err := clientStore.GetClient(ctx, clientID)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Erro ao encontrar cliente '%s': %+v", clientID, err)
+                wrappedErr := fmt.Errorf("falha ao obter cliente %s: %w", clientID, err)
+                // Use fosite.ErrNotFound for client not found, otherwise ErrServerError
+                if e, ok := err.(*fosite.RFC6749Error); ok &amp;&amp; e.StatusCode() == http.StatusNotFound </span><span class="cov0" title="0">{
+                        h.Provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrInvalidClient.WithHintf("Cliente '%s' não encontrado.", clientID).WithWrap(err))
+                }</span> else<span class="cov0" title="0"> {
+                        h.Provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError.WithHint(wrappedErr.Error()).WithWrap(err))
+                }</span>
+                <span class="cov0" title="0">return</span>
+        }
+
+        <span class="cov0" title="0">if needsConsent &amp;&amp; !session.ConsentGranted </span><span class="cov0" title="0">{
+                // Gerar token CSRF para formulário de consentimento
+                csrf, err := GenerateCSRFToken()
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "Falha ao gerar token CSRF", http.StatusInternalServerError)
+                        return
+                }</span>
+
+                // Redirecionar para página de consentimento
+                // Armazenar detalhes necessários na sessão para o handler de consentimento
+                <span class="cov0" title="0">session.OriginalAuthURL = r.URL.String() // Manter a URL auth original
+                session.RequestedScopes = ar.GetRequestedScopes()
+                session.ClientID = client.GetID()
+                session.ConsentGranted = false // Marcar consentimento como ainda não concedido para este fluxo
+                session.CSRFToken = csrf       // Armazenar token CSRF
+
+                // Usar o ID de sessão existente do cookie
+                cookie, err := r.Cookie("auth_session_id")
+                if err != nil </span><span class="cov0" title="0">{ // Deve ter cookie se usuário estiver autenticado
+                        http.Error(w, "Cookie de sessão ausente", http.StatusInternalServerError)
+                        return
+                }</span>
+                <span class="cov0" title="0">h.createOrUpdateSession(w, r, cookie.Value, session) // Passar 'r'
+
+                consentURL := "/consent?session_id=" + cookie.Value
+                http.Redirect(w, r, consentURL, http.StatusFound)
+                return</span>
+        }
+
+        // --- Conceder Acesso ---
+        // Usuário está autenticado e deu consentimento (ou não era necessário).
+
+        // Definir o ID do usuário no contexto da sessão para o Fosite
+        // Isso é tipicamente feito após autenticação e consentimento bem-sucedidos.
+        <span class="cov0" title="0">mySessionData := &amp;openid.DefaultSession{
+                Claims: &amp;jwt.IDTokenClaims{
+                        Subject: session.UserID, // O ID do usuário autenticado
+                        // Adicionar outras claims como email, perfil, etc., com base nos escopos concedidos
+                        // Certifique-se de que correspondam aos escopos que o usuário realmente concedeu!
+                        Extra: make(map[string]interface{}),
+                },
+                Headers: &amp;jwt.Headers{},
+                Subject: session.UserID,
+        }
+
+        // Conceder os escopos. Se o fluxo de consentimento foi pulado, conceder todos os escopos solicitados.
+        // Se o fluxo de consentimento aconteceu, conceder escopos de session.GrantedScopes.
+        if !needsConsent </span><span class="cov0" title="0">{
+                for _, scope := range ar.GetRequestedScopes() </span><span class="cov0" title="0">{
+                        ar.GrantScope(scope)
+                }</span>
+        } else<span class="cov0" title="0"> {
+                for _, scope := range session.GrantedScopes </span><span class="cov0" title="0">{
+                        ar.GrantScope(scope)
+                }</span>
+        }
+
+        // Gerar a resposta de autorização (código, token, id_token)
+        <span class="cov0" title="0">response, err := h.Provider.NewAuthorizeResponse(ctx, ar, mySessionData)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Erro ocorrido em NewAuthorizeResponse: %+v", err)
+                h.Provider.WriteAuthorizeError(ctx, w, ar, err)
+                return
+        }</span>
+
+        // Enviar a resposta de volta ao cliente
+        <span class="cov0" title="0">h.Provider.WriteAuthorizeResponse(ctx, w, ar, response)
+
+        // Limpar flag de consentimento e token CSRF para a próxima requisição
+        session.ConsentGranted = false
+        session.GrantedScopes = nil
+        session.RequestedScopes = nil
+        session.ClientID = ""
+        session.OriginalAuthURL = ""
+        session.CSRFToken = ""                               // Limpar token CSRF após uso
+        cookie, _ := r.Cookie("auth_session_id")             // Reusar valor de cookie existente
+        h.createOrUpdateSession(w, r, cookie.Value, session)</span> // Passar 'r'
+}
+
+// TokenEndpoint lida com as requisições de token OAuth 2.0 (/oauth2/token)
+func (h *OAuth2Handler) TokenEndpoint(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx := r.Context()
+
+        // Criar um novo objeto de sessão para o Fosite.
+        // Para tipos de concessão como client_credentials ou refresh_token, a sessão do usuário pode não ser relevante.
+        // Para autorização_código, o Fosite recupera a sessão associada ao código.
+        mySessionData := &amp;openid.DefaultSession{
+                Claims:  &amp;jwt.IDTokenClaims{Extra: make(map[string]interface{})},
+                Headers: &amp;jwt.Headers{},
+        }
+
+        // Analisar a requisição de acesso
+        ar, err := h.Provider.NewAccessRequest(ctx, r, mySessionData)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Erro ocorrido em NewAccessRequest: %+v", err)
+                h.Provider.WriteAccessError(ctx, w, ar, err)
+                return
+        }</span>
+
+        // Se esta é uma concessão refresh_token, você pode querer verificar se o usuário ainda é válido
+        <span class="cov0" title="0">if ar.GetGrantTypes().Exact("refresh_token") </span>{<span class="cov0" title="0">
+                // Procurar o usuário na sessão associada ao token de atualização
+                // userID := mySessionData.GetSubject() ... verificar se o usuário está ativo ...
+        }</span>
+
+        // Gerar a resposta de acesso
+        <span class="cov0" title="0">response, err := h.Provider.NewAccessResponse(ctx, ar)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Erro ocorrido em NewAccessResponse: %+v", err)
+                h.Provider.WriteAccessError(ctx, w, ar, err)
+                return
+        }</span>
+
+        // Enviar a resposta de volta ao cliente
+        <span class="cov0" title="0">h.Provider.WriteAccessResponse(ctx, w, ar, response)</span>
+}
+
+// IntrospectionEndpoint lida com as requisições de introspecção de token
+func (h *OAuth2Handler) IntrospectionEndpoint(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx := r.Context()                    // Usar contexto da requisição diretamente
+        session := new(openid.DefaultSession) // Usar tipo de sessão apropriado
+        ir, err := h.Provider.NewIntrospectionRequest(ctx, r, session)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Requisição de introspecção falhou: %+v", err)
+                h.Provider.WriteIntrospectionError(ctx, w, err) // Adicionar ctx
+                return
+        }</span>
+        <span class="cov0" title="0">h.Provider.WriteIntrospectionResponse(ctx, w, ir)</span> // Adicionar ctx
+}
+
+// RevocationEndpoint lida com as requisições de revogação de token
+func (h *OAuth2Handler) RevocationEndpoint(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx := r.Context() // Usar contexto da requisição diretamente
+        err := h.Provider.NewRevocationRequest(ctx, r)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Requisição de revogação falhou: %+v", err)
+        }</span>
+        <span class="cov0" title="0">h.Provider.WriteRevocationResponse(ctx, w, err)</span> // Adicionar ctx
+}
+
+// LoginHandler lida com a exibição e submissão do formulário de login do usuário
+func (h *OAuth2Handler) LoginHandler(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        sessionID := r.URL.Query().Get("session_id")
+        if sessionID == "" </span><span class="cov0" title="0">{
+                http.Error(w, "session_id ausente", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">loginSess, exists := h.Sessions[sessionID]
+        if !exists || loginSess.OriginalAuthURL == "" </span><span class="cov0" title="0">{
+                http.Error(w, "Sessão de login inválida ou expirada", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if r.Method == http.MethodGet </span><span class="cov0" title="0">{
+                // Exibir formulário de login usando template
+                w.Header().Set("Content-Type", "text/html")
+                data := map[string]interface{}{
+                        "SessionID":      sessionID,
+                        "CSRFTokenField": template.HTML(fmt.Sprintf(`&lt;input type="hidden" name="csrf_token" value="%s"&gt;`, loginSess.CSRFToken)),
+                        "Error":          nil, // Adicionar mensagem de erro se necessário de tentativa anterior
+                }
+                err := h.Templates.ExecuteTemplate(w, "login.html", data)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Erro ao executar template de login: %v", err)
+                        http.Error(w, "Falha ao renderizar página de login", http.StatusInternalServerError)
+                }</span>
+                <span class="cov0" title="0">return</span>
+        }
+
+        <span class="cov0" title="0">if r.Method == http.MethodPost </span><span class="cov0" title="0">{
+                if err := r.ParseForm(); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "Falha ao analisar formulário", http.StatusBadRequest)
+                        return
+                }</span>
+
+                // --- Verificação CSRF ---
+                <span class="cov0" title="0">submittedCSRF := r.FormValue("csrf_token")
+                if submittedCSRF == "" || submittedCSRF != loginSess.CSRFToken </span><span class="cov0" title="0">{
+                        http.Error(w, "Token CSRF inválido", http.StatusForbidden)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">username := r.FormValue("username")
+                password := r.FormValue("password")
+
+                // --- Autenticação Fictícia ---
+                // Substitua por sua lógica real de autenticação de usuário (verificar hash de senha, etc.)
+                if username == "user" &amp;&amp; password == "password" </span><span class="cov0" title="0">{
+                        // Autenticação bem-sucedida
+                        log.Printf("Usuário '%s' autenticado com sucesso", username)
+
+                        // Criar uma sessão persistente para o usuário autenticado
+                        userSessionID := "user_session_" + username + "_" + fmt.Sprint(time.Now().UnixNano())
+                        userSess := &amp;Session{
+                                UserID:          username,
+                                AuthenticatedAt: time.Now(),
+                        }
+                        h.createOrUpdateSession(w, r, userSessionID, userSess) // Passar 'r'
+
+                        // Redirecionar de volta para a URL /oauth2/auth original armazenada na sessão de login
+                        originalAuthURL := loginSess.OriginalAuthURL
+                        delete(h.Sessions, sessionID) // Limpar sessão de login temporária
+
+                        http.Redirect(w, r, originalAuthURL, http.StatusFound)
+                        return
+                }</span> else<span class="cov0" title="0"> {
+                        // Autenticação falhou
+                        log.Printf("Autenticação falhou para usuário '%s'", username)
+
+                        // Exibir novamente formulário de login com mensagem de erro
+                        w.Header().Set("Content-Type", "text/html")
+                        w.WriteHeader(http.StatusUnauthorized) // Definir código de status apropriado
+                        data := map[string]interface{}{
+                                "SessionID":      sessionID,
+                                "CSRFTokenField": template.HTML(fmt.Sprintf(`&lt;input type="hidden" name="csrf_token" value="%s"&gt;`, loginSess.CSRFToken)),
+                                "Error":          "Nome de usuário ou senha inválidos",
+                        }
+                        err := h.Templates.ExecuteTemplate(w, "login.html", data)
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Erro ao executar template de login após falha: %v", err)
+                                http.Error(w, "Falha ao renderizar página de login", http.StatusInternalServerError)
+                        }</span>
+                        <span class="cov0" title="0">return</span>
+                }
+        }
+
+        <span class="cov0" title="0">http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)</span>
+}
+
+// ConsentHandler lida com a exibição e submissão do formulário de consentimento do usuário
+func (h *OAuth2Handler) ConsentHandler(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        sessionID := r.URL.Query().Get("session_id")
+        if sessionID == "" </span><span class="cov0" title="0">{
+                http.Error(w, "session_id ausente", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">sess, exists := h.Sessions[sessionID]
+        if !exists || sess.OriginalAuthURL == "" || sess.ClientID == "" </span><span class="cov0" title="0">{
+                http.Error(w, "Sessão de consentimento inválida ou expirada", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">ctx := r.Context()
+        // Reanalisar a requisição de autorização original usando a URL armazenada
+        // Nota: Pode ser melhor armazenar o próprio objeto AuthorizeRequest na sessão se possível,
+        // ou pelo menos todos os parâmetros necessários, para evitar problemas potenciais com reanálise.
+        originalReq, err := http.NewRequestWithContext(ctx, "GET", sess.OriginalAuthURL, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "Falha ao reconstruir requisição original", http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">ar, err := h.Provider.NewAuthorizeRequest(ctx, originalReq)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("Erro ao reanalisar requisição de autorização no consentimento: %+v", err)
+                h.Provider.WriteAuthorizeError(ctx, w, ar, err)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if r.Method == http.MethodGet </span><span class="cov0" title="0">{
+                // Exibir formulário de consentimento usando template
+                clientStore, ok := h.Store.(fosite.ClientManager)
+                if !ok </span><span class="cov0" title="0">{
+                        log.Printf("Erro interno: O armazenamento configurado não implementa fosite.ClientManager")
+                        h.Provider.WriteAuthorizeError(ctx, w, ar, fosite.ErrServerError.WithHint("Erro interno do servidor."))
+                        return
+                }</span>
+                <span class="cov0" title="0">client, err := clientStore.GetClient(ctx, sess.ClientID)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Erro ao obter cliente '%s' na página de consentimento: %+v", sess.ClientID, err)
+                        http.Error(w, "Erro ao obter informações do cliente", http.StatusInternalServerError)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">w.Header().Set("Content-Type", "text/html")
+                data := map[string]interface{}{
+                        "ClientID":        client.GetID(), // Usar client.GetName() se disponível
+                        "RequestedScopes": sess.RequestedScopes,
+                        "SessionID":       sessionID,
+                        "CSRFTokenField":  template.HTML(fmt.Sprintf(`&lt;input type="hidden" name="csrf_token" value="%s"&gt;`, sess.CSRFToken)),
+                }
+                err = h.Templates.ExecuteTemplate(w, "consent.html", data)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Erro ao executar template de consentimento: %v", err)
+                        http.Error(w, "Falha ao renderizar página de consentimento", http.StatusInternalServerError)
+                }</span>
+                <span class="cov0" title="0">return</span>
+        }
+
+        <span class="cov0" title="0">if r.Method == http.MethodPost </span><span class="cov0" title="0">{
+                if err := r.ParseForm(); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "Falha ao analisar formulário", http.StatusBadRequest)
+                        return
+                }</span>
+
+                // --- Verificação CSRF ---
+                <span class="cov0" title="0">submittedCSRF := r.FormValue("csrf_token")
+                if submittedCSRF == "" || submittedCSRF != sess.CSRFToken </span><span class="cov0" title="0">{
+                        http.Error(w, "Token CSRF inválido", http.StatusForbidden)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">consentAction := r.FormValue("consent")
+
+                if consentAction == "Deny" </span><span class="cov0" title="0">{
+                        // Usuário negou acesso
+                        err := fosite.ErrAccessDenied.WithDescription("O proprietário do recurso negou a requisição")
+                        h.Provider.WriteAuthorizeError(ctx, w, ar, err)
+                        delete(h.Sessions, sessionID) // Limpar sessão
+                        return
+                }</span>
+
+                <span class="cov0" title="0">if consentAction == "Allow" </span><span class="cov0" title="0">{
+                        grantedScopes := r.Form["scopes"]
+
+                        // Marcar consentimento concedido na sessão e armazenar escopos concedidos
+                        sess.ConsentGranted = true
+                        sess.GrantedScopes = grantedScopes
+                        sess.Form = r.Form                             // Armazenar dados do formulário se necessário pelo Fosite depois
+                        h.createOrUpdateSession(w, r, sessionID, sess) // Passar 'r'
+
+                        // Redirecionar de volta para o handler /oauth2/auth original,
+                        // que agora encontrará ConsentGranted = true e prosseguirá.
+                        http.Redirect(w, r, sess.OriginalAuthURL, http.StatusFound)
+                        return
+                }</span>
+
+                // Ação inválida
+                <span class="cov0" title="0">http.Error(w, "Ação de consentimento inválida", http.StatusBadRequest)
+                return</span>
+        }
+
+        <span class="cov0" title="0">http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)</span>
+}
+
+// getUserSession recupera a sessão do usuário com base em uma requisição (por exemplo, cookie).
+// Retorna nil se nenhuma sessão válida for encontrada.
+func (h *OAuth2Handler) getUserSession(r *http.Request) *Session <span class="cov0" title="0">{
+        // Em um app real, obter ID de sessão de um cookie seguro
+        // e procurá-lo em seu armazenamento de sessão (Redis, DB, etc.)
+        cookie, err := r.Cookie("auth_session_id")
+        if err != nil </span><span class="cov0" title="0">{
+                return nil // Sem cookie de sessão
+        }</span>
+        <span class="cov0" title="0">sess, exists := h.Sessions[cookie.Value]
+        if !exists </span><span class="cov0" title="0">{
+                return nil // Sessão expirada ou inválida
+        }</span>
+        // Verificação básica: Assume que a sessão é válida se existir
+        // Em um app real, adicione verificações de expiração, etc.
+        <span class="cov0" title="0">if sess.UserID == "" &amp;&amp; r.URL.Path != "/login" &amp;&amp; r.URL.Path != "/consent" </span>{<span class="cov0" title="0">
+                // Permitir acesso a login/consent mesmo sem UserID se a sessão existir
+                // Mas para outros caminhos, exigir UserID
+                // Esta lógica pode precisar de refinamento com base no fluxo exato.
+        }</span> else<span class="cov0" title="0"> if sess.UserID == "" &amp;&amp; r.URL.Path != "/login" &amp;&amp; r.URL.Path != "/consent" </span><span class="cov0" title="0">{
+                return nil // Não autenticado para caminhos que não sejam login/consent
+        }</span>
+        <span class="cov0" title="0">return sess</span>
+}
+
+// createOrUpdateSession cria ou atualiza uma sessão e define o cookie apropriado.
+// Em um app real, isso interagiria com um armazenamento de sessão persistente.
+func (h *OAuth2Handler) createOrUpdateSession(w http.ResponseWriter, r *http.Request, sessionID string, sess *Session) <span class="cov0" title="0">{
+        h.Sessions[sessionID] = sess
+        cookie := &amp;http.Cookie{
+                Name:     "auth_session_id",
+                Value:    sessionID,
+                Path:     "/",
+                HttpOnly: true,
+                Secure:   r.TLS != nil, // Define Secure se a requisição for HTTPS
+                SameSite: http.SameSiteLaxMode,
+                Expires:  time.Now().Add(24 * time.Hour), // Expiração de exemplo
+        }
+        http.SetCookie(w, cookie)
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">// Package auth contém os casos de uso relacionados à autenticação.
+package auth
+
+import (
+        "context"
+        "errors"
+        "time"
+
+        "identity-go/internal/domain/entity"
+        "identity-go/internal/domain/repository"
+)
+
+// Errors
+var (
+        ErrInvalidCredentials = errors.New("credenciais inválidas")
+        ErrUserInactive       = errors.New("usuário inativo")
+)
+
+// LoginRequest representa os dados de entrada para login.
+type LoginRequest struct {
+        Username string
+        Password string
+}
+
+// LoginResponse representa os dados de saída após login bem-sucedido.
+type LoginResponse struct {
+        User         *entity.User
+        AccessToken  string
+        RefreshToken string
+        ExpiresAt    time.Time
+}
+
+// AuthService defines the interface for authentication operations required by LoginUseCase.
+type AuthService interface {
+        VerifyPassword(ctx context.Context, hashedPassword, providedPassword string) (bool, error)
+        GenerateToken(ctx context.Context, user *entity.User, expiry time.Duration) (string, error)
+}
+
+// LoginUseCase implementa o caso de uso de login de usuário.
+type LoginUseCase struct {
+        userRepo    repository.UserRepository
+        authService AuthService // Use the local interface definition
+}
+
+// NewLoginUseCase cria uma nova instância do caso de uso de login.
+func NewLoginUseCase(userRepo repository.UserRepository, authService AuthService) *LoginUseCase <span class="cov0" title="0">{ // Use the local interface definition
+        return &amp;LoginUseCase{
+                userRepo:    userRepo,
+                authService: authService,
+        }
+}</span>
+
+// Execute realiza o processo de login e retorna tokens de acesso em caso de sucesso.
+func (u *LoginUseCase) Execute(ctx context.Context, req LoginRequest) (*LoginResponse, error) <span class="cov0" title="0">{
+        // Buscar usuário pelo username
+        user, err := u.userRepo.FindByUsername(ctx, req.Username)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, ErrInvalidCredentials
+        }</span>
+
+        // Verificar se o usuário está ativo
+        <span class="cov0" title="0">if !user.IsActive() </span><span class="cov0" title="0">{
+                return nil, ErrUserInactive
+        }</span>
+
+        // Verificar senha
+        <span class="cov0" title="0">valid, err := u.authService.VerifyPassword(ctx, user.HashedPassword, req.Password)
+        if err != nil || !valid </span><span class="cov0" title="0">{
+                return nil, ErrInvalidCredentials
+        }</span>
+
+        // Atualizar último login
+        <span class="cov0" title="0">now := time.Now()
+        user.SetLastLogin(now)
+        if err := u.userRepo.Update(ctx, user); err != nil </span>{<span class="cov0" title="0">
+                // Não crítico, apenas logar erro
+                // log.Printf("Erro ao atualizar data de último login: %v", err)
+        }</span>
+
+        // Gerar tokens
+        <span class="cov0" title="0">accessTokenExpiry := 30 * time.Minute
+        accessToken, err := u.authService.GenerateToken(ctx, user, accessTokenExpiry)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">refreshTokenExpiry := 7 * 24 * time.Hour // 1 semana
+        refreshToken, err := u.authService.GenerateToken(ctx, user, refreshTokenExpiry)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return &amp;LoginResponse{
+                User:         user,
+                AccessToken:  accessToken,
+                RefreshToken: refreshToken,
+                ExpiresAt:    now.Add(accessTokenExpiry),
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">// Package token contém os casos de uso relacionados ao gerenciamento de tokens.
+package token
+
+import (
+        "context"
+        "errors"
+        "time"
+)
+
+// Errors
+var (
+        ErrInvalidGrantType = errors.New("tipo de concessão inválido")
+        ErrInvalidScope     = errors.New("escopo inválido")
+        ErrInvalidClient    = errors.New("cliente inválido")
+)
+
+// GrantType representa os tipos de concessão OAuth2
+type GrantType string
+
+const (
+        GrantTypeAuthorizationCode GrantType = "authorization_code"
+        GrantTypeClientCredentials GrantType = "client_credentials"
+        GrantTypeRefreshToken      GrantType = "refresh_token"
+        GrantTypePassword          GrantType = "password"
+)
+
+// GenerateTokenRequest representa os dados de entrada para geração de token.
+type GenerateTokenRequest struct {
+        GrantType    GrantType
+        ClientID     string
+        ClientSecret string
+        Code         string // Para authorization_code
+        RedirectURI  string // Para authorization_code
+        RefreshToken string // Para refresh_token
+        Username     string // Para password
+        Password     string // Para password
+        Scope        string // Opcional
+}
+
+// TokenResponse representa os dados de saída após geração de token.
+type TokenResponse struct {
+        AccessToken  string
+        TokenType    string
+        ExpiresIn    int
+        RefreshToken string
+        Scope        string
+        IDToken      string // Para OpenID Connect
+        ExpiresAt    time.Time
+}
+
+// GenerateTokenUseCase implementa o caso de uso de geração de token OAuth2.
+type GenerateTokenUseCase struct {
+        tokenRepository  TokenRepository
+        clientRepository ClientRepository
+}
+
+// TokenRepository define o contrato para operações de persistência de tokens.
+type TokenRepository interface {
+        StoreAccessToken(ctx context.Context, token string, clientID string, userID string, expiry time.Time, scope string) error
+        StoreRefreshToken(ctx context.Context, token string, clientID string, userID string, expiry time.Time, scope string) error
+        RevokeToken(ctx context.Context, token string, tokenType string) error
+}
+
+// ClientRepository define o contrato para operações com clientes OAuth2.
+type ClientRepository interface {
+        ValidateClient(ctx context.Context, clientID string, clientSecret string) (bool, error)
+        IsGrantSupported(ctx context.Context, clientID string, grant GrantType) (bool, error)
+        ValidateScope(ctx context.Context, clientID string, scope string) (string, error)
+}
+
+// NewGenerateTokenUseCase cria uma nova instância do caso de uso de geração de token.
+func NewGenerateTokenUseCase(tokenRepo TokenRepository, clientRepo ClientRepository) *GenerateTokenUseCase <span class="cov0" title="0">{
+        return &amp;GenerateTokenUseCase{
+                tokenRepository:  tokenRepo,
+                clientRepository: clientRepo,
+        }
+}</span>
+
+// Execute realiza o processo de geração de token conforme o tipo de concessão.
+func (u *GenerateTokenUseCase) Execute(ctx context.Context, req GenerateTokenRequest) (*TokenResponse, error) <span class="cov0" title="0">{
+        // Validar cliente
+        valid, err := u.clientRepository.ValidateClient(ctx, req.ClientID, req.ClientSecret)
+        if err != nil || !valid </span><span class="cov0" title="0">{
+                return nil, ErrInvalidClient
+        }</span>
+
+        // Validar se o tipo de concessão é suportado pelo cliente
+        <span class="cov0" title="0">supported, err := u.clientRepository.IsGrantSupported(ctx, req.ClientID, req.GrantType)
+        if err != nil || !supported </span><span class="cov0" title="0">{
+                return nil, ErrInvalidGrantType
+        }</span>
+
+        // Validar escopo
+        <span class="cov0" title="0">finalScope, err := u.clientRepository.ValidateScope(ctx, req.ClientID, req.Scope)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, ErrInvalidScope
+        }</span>
+
+        // Tratamento específico para cada tipo de concessão
+        <span class="cov0" title="0">switch req.GrantType </span>{
+        case GrantTypeClientCredentials:<span class="cov0" title="0">
+                return u.handleClientCredentials(ctx, req, finalScope)</span>
+        case GrantTypeRefreshToken:<span class="cov0" title="0">
+                return u.handleRefreshToken(ctx, req, finalScope)</span>
+        case GrantTypeAuthorizationCode:<span class="cov0" title="0">
+                return u.handleAuthorizationCode(ctx, req, finalScope)</span>
+        case GrantTypePassword:<span class="cov0" title="0">
+                return u.handlePassword(ctx, req, finalScope)</span>
+        default:<span class="cov0" title="0">
+                return nil, ErrInvalidGrantType</span>
+        }
+}
+
+// handleClientCredentials implementa a geração de token para o fluxo client_credentials
+// utilizando os parâmetros recebidos
+func (u *GenerateTokenUseCase) handleClientCredentials(ctx context.Context, req GenerateTokenRequest, scope string) (*TokenResponse, error) <span class="cov0" title="0">{
+        // Em uma implementação real, geraria tokens reais e os armazenaria
+        // Por enquanto, retornamos um mock simples
+        now := time.Now()
+        expiresIn := 3600 // 1 hora
+
+        // Usar os parâmetros recebidos para gerar um token real
+        accessToken := "mock_access_token_" + req.ClientID
+
+        // Em uma implementação real, armazenar o token no repositório
+        err := u.tokenRepository.StoreAccessToken(
+                ctx,
+                accessToken,
+                req.ClientID,
+                "", // Não há userID no fluxo client_credentials
+                now.Add(time.Duration(expiresIn)*time.Second),
+                scope,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return &amp;TokenResponse{
+                AccessToken: accessToken,
+                TokenType:   "bearer",
+                ExpiresIn:   expiresIn,
+                Scope:       scope,
+                ExpiresAt:   now.Add(time.Duration(expiresIn) * time.Second),
+        }, nil</span>
+}
+
+// handleRefreshToken implementa a geração de novo access_token a partir de um refresh_token
+func (u *GenerateTokenUseCase) handleRefreshToken(ctx context.Context, req GenerateTokenRequest, scope string) (*TokenResponse, error) <span class="cov0" title="0">{
+        // Em uma implementação real:
+        // 1. Validar o refresh_token
+        // 2. Revogar o token antigo
+        // 3. Gerar novos tokens
+        // 4. Armazenar os novos tokens
+
+        // Usar o contexto para cancelamento e timeout
+        select </span>{
+        case &lt;-ctx.Done():<span class="cov0" title="0">
+                return nil, ctx.Err()</span>
+        default:<span class="cov0" title="0"></span>
+                // Continuar processamento
+        }
+
+        // Exemplo simplificado usando os parâmetros
+        <span class="cov0" title="0">now := time.Now()
+        expiresIn := 3600
+
+        return &amp;TokenResponse{
+                AccessToken:  "new_access_token_" + req.ClientID,
+                RefreshToken: "new_refresh_token_" + req.ClientID,
+                TokenType:    "bearer",
+                ExpiresIn:    expiresIn,
+                Scope:        scope,
+                ExpiresAt:    now.Add(time.Duration(expiresIn) * time.Second),
+        }, nil</span>
+}
+
+// handleAuthorizationCode implementa a troca do código de autorização por tokens
+func (u *GenerateTokenUseCase) handleAuthorizationCode(_ context.Context, req GenerateTokenRequest, scope string) (*TokenResponse, error) <span class="cov0" title="0">{
+        // Em uma implementação real:
+        // 1. Validar o código de autorização
+        // 2. Verificar se o redirect_uri corresponde ao original
+        // 3. Gerar tokens
+        // 4. Armazenar tokens
+
+        // Validar o code e redirect_uri da requisição
+        if req.Code == "" || req.RedirectURI == "" </span><span class="cov0" title="0">{
+                return nil, errors.New("código ou redirect_uri inválidos")
+        }</span>
+
+        // Usar o contexto para logging estruturado ou tracing
+        // logger := ctx.Value("logger").(Logger)
+        // logger.Info("Processando código de autorização", "client_id", req.ClientID, "scope", scope)
+
+        <span class="cov0" title="0">now := time.Now()
+        expiresIn := 3600
+
+        return &amp;TokenResponse{
+                AccessToken:  "auth_code_access_token_" + req.ClientID,
+                RefreshToken: "auth_code_refresh_token_" + req.ClientID,
+                TokenType:    "bearer",
+                ExpiresIn:    expiresIn,
+                Scope:        scope,
+                ExpiresAt:    now.Add(time.Duration(expiresIn) * time.Second),
+                // IDToken seria gerado aqui se o escopo incluir 'openid'
+        }, nil</span>
+}
+
+// handlePassword implementa o fluxo de autenticação com usuário e senha
+func (u *GenerateTokenUseCase) handlePassword(_ context.Context, req GenerateTokenRequest, scope string) (*TokenResponse, error) <span class="cov0" title="0">{
+        // Em uma implementação real:
+        // 1. Autenticar o usuário
+        // 2. Validar permissões
+        // 3. Gerar tokens
+        // 4. Armazenar tokens
+
+        // Validar credenciais do usuário na requisição
+        if req.Username == "" || req.Password == "" </span><span class="cov0" title="0">{
+                return nil, errors.New("credenciais de usuário inválidas")
+        }</span>
+
+        // Verificar se o escopo solicitado é permitido para este usuário
+        <span class="cov0" title="0">if !validateUserScope(req.Username, scope) </span><span class="cov0" title="0">{
+                return nil, ErrInvalidScope
+        }</span>
+
+        <span class="cov0" title="0">now := time.Now()
+        expiresIn := 3600
+
+        return &amp;TokenResponse{
+                AccessToken:  "password_access_token_" + req.Username,
+                RefreshToken: "password_refresh_token_" + req.Username,
+                TokenType:    "bearer",
+                ExpiresIn:    expiresIn,
+                Scope:        scope,
+                ExpiresAt:    now.Add(time.Duration(expiresIn) * time.Second),
+        }, nil</span>
+}
+
+// Função auxiliar para validar escopos do usuário
+func validateUserScope(_ string, _ string) bool <span class="cov0" title="0">{
+        // Implementação fictícia - em um sistema real, verificaria permissões do usuário
+        return true
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

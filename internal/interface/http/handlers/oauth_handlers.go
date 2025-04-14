@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ory/fosite"
@@ -41,7 +43,17 @@ type Session struct {
 
 // NewOAuth2Handler cria um novo handler OAuth2 com suas dependências
 func NewOAuth2Handler(provider fosite.OAuth2Provider, store interface{}) *OAuth2Handler {
-	templates, err := template.ParseGlob("templates/*.html")
+	// Verificar se existe uma variável de ambiente para o caminho dos templates
+	templatesPath := os.Getenv("TEMPLATES_PATH")
+	if templatesPath == "" {
+		// Se não houver variável de ambiente, usar o caminho relativo padrão
+		templatesPath = "templates"
+	}
+
+	// Montar o padrão de busca para os templates
+	templatesPattern := filepath.Join(templatesPath, "*.html")
+
+	templates, err := template.ParseGlob(templatesPattern)
 	if err != nil {
 		log.Fatalf("Falha ao analisar templates: %v", err)
 	}
