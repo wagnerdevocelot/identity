@@ -1,5 +1,9 @@
 # Stage 1: Build the application
-FROM golang:1.22-alpine AS builder
+# Use a specific Alpine version with security patches applied
+FROM golang:1.22.0-alpine3.19 AS builder
+
+# Update packages to patch vulnerabilities
+RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
@@ -15,19 +19,16 @@ RUN go mod download
 COPY . .
 
 # Build the Go app, compiling all .go files in the current directory
-# -ldflags="-w -s" reduces the size of the binary by removing debug information
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /identity-go .
-
 # Stage 2: Create the final lightweight runtime image
-FROM alpine:latest
+FROM gcr.io/distroless/static-debian11:nonroot
 
 WORKDIR /app
 
 # Copy only the compiled binary from the builder stage
 COPY --from=builder /identity-go /identity-go
 
-# Copy the templates directory from the builder stage's source copy
-# The source path is /app/templates because WORKDIR was /app and we did COPY . .
+# Copy only the compiled binary from the builder stage
+COPY --from=builder /app/identity-go /identity-go
 COPY --from=builder /app/templates ./templates
 
 # Expose the port the application listens on

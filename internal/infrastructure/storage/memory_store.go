@@ -1,4 +1,5 @@
-package main
+// Package storage contém as implementações de armazenamento de dados.
+package storage
 
 import (
 	"context"
@@ -8,50 +9,24 @@ import (
 	"time"
 
 	"github.com/ory/fosite"
-	"github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/openid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// StorageInterface defines a generic contract for all storage implementations,
-// providing a common set of methods for CRUD operations on different entities.
-type StorageInterface interface {
-	// Client operations
-	GetClient(ctx context.Context, id string) (fosite.Client, error)
-	CreateClient(ctx context.Context, client fosite.Client) error
-	UpdateClient(ctx context.Context, client fosite.Client) error
-	DeleteClient(ctx context.Context, id string) error
-
-	// Token operations
-	CreateToken(ctx context.Context, tokenType string, signature string, clientID string, data interface{}) error
-	GetToken(ctx context.Context, tokenType string, signature string) (interface{}, error)
-	DeleteToken(ctx context.Context, tokenType string, signature string) error
-	RevokeToken(ctx context.Context, tokenType string, signature string) error
-
-	// Session operations
-	CreateSession(ctx context.Context, sessionType string, id string, data interface{}) error
-	GetSession(ctx context.Context, sessionType string, id string) (interface{}, error)
-	DeleteSession(ctx context.Context, sessionType string, id string) error
-
-	// JWT operations
-	ValidateJWT(ctx context.Context, jti string) error
-	MarkJWTAsUsed(ctx context.Context, jti string, exp time.Time) error
-}
-
-// InMemoryStore provides a simple in-memory implementation of Fosite's storage interfaces.
-// WARNING: This is for demonstration purposes only. Use a persistent store in production.
+// InMemoryStore fornece uma implementação simples em memória das interfaces de armazenamento do Fosite.
+// AVISO: Isso é apenas para fins de demonstração. Use um armazenamento persistente em produção.
 type InMemoryStore struct {
 	Clients        map[string]fosite.Client
 	AuthorizeCodes map[string]fosite.Requester
 	AccessTokens   map[string]fosite.Requester
 	RefreshTokens  map[string]map[string]fosite.Requester
 	OIDCSessions   map[string]fosite.Requester
-	PKCESessions   map[string]fosite.Requester // Added for PKCE
+	PKCESessions   map[string]fosite.Requester
 	Mutex          sync.RWMutex
 	UsedJTIs       map[string]time.Time
 }
 
-// NewInMemoryStore initializes a new in-memory store.
+// NewInMemoryStore inicializa um novo armazenamento em memória.
 func NewInMemoryStore() *InMemoryStore {
 	store := &InMemoryStore{
 		Clients:        make(map[string]fosite.Client),
@@ -63,16 +38,16 @@ func NewInMemoryStore() *InMemoryStore {
 		UsedJTIs:       make(map[string]time.Time),
 	}
 
-	// Hash the client secret using bcrypt directly
+	// Hash do segredo do cliente usando bcrypt diretamente
 	hashedSecret, err := bcrypt.GenerateFromPassword([]byte("foobar"), bcrypt.DefaultCost)
 	if err != nil {
-		log.Fatalf("Failed to hash client secret: %v", err)
+		log.Fatalf("Falha ao gerar hash do segredo do cliente: %v", err)
 	}
-	// Corrected definition for my-test-client using DefaultOpenIDConnectClient
+	// Definição corrigida para my-test-client usando DefaultOpenIDConnectClient
 	store.Clients["my-test-client"] = &fosite.DefaultOpenIDConnectClient{
 		DefaultClient: &fosite.DefaultClient{
 			ID:            "my-test-client",
-			Secret:        hashedSecret, // Use the hashed secret
+			Secret:        hashedSecret, // Usa o segredo com hash
 			RedirectURIs:  []string{"http://localhost:3000/callback", "http://127.0.0.1:3000/callback"},
 			GrantTypes:    fosite.Arguments{"authorization_code", "refresh_token", "client_credentials"},
 			ResponseTypes: fosite.Arguments{"code", "token", "id_token", "code id_token", "code token", "id_token token", "code id_token token"},
@@ -80,64 +55,59 @@ func NewInMemoryStore() *InMemoryStore {
 			Audience:      fosite.Arguments{"https://my-api.com"},
 			Public:        false,
 		},
-		// Kept valid OIDC fields, removed invalid ones for v0.49.0
 		JSONWebKeysURI:          "",
 		TokenEndpointAuthMethod: "client_secret_basic",
 		RequestURIs:             []string{},
-		// BackChannelLogoutSessionRequired: false, // Removed
-		// Contacts:                       []string{"admin@example.com"}, // Removed
 	}
 
 	return store
 }
 
-// GetClient retrieves a client by its ID.
+// GetClient recupera um cliente pelo seu ID.
 func (s *InMemoryStore) GetClient(ctx context.Context, id string) (fosite.Client, error) {
 	s.Mutex.RLock()
 	defer s.Mutex.RUnlock()
 	client, ok := s.Clients[id]
 	if !ok {
-		return nil, fmt.Errorf("%w: Client with ID %s not found", fosite.ErrNotFound, id)
+		return nil, fmt.Errorf("%w: Cliente com ID %s não encontrado", fosite.ErrNotFound, id)
 	}
 	return client, nil
 }
 
-// ClientAssertionJWTValid checks if a client assertion JWT ID is valid (basic stub).
-// Renamed from IsClientAssertionJWTValid
+// ClientAssertionJWTValid verifica se um ID JWT de asserção de cliente é válido.
 func (s *InMemoryStore) ClientAssertionJWTValid(ctx context.Context, jti string) error {
 	s.Mutex.RLock()
 	defer s.Mutex.RUnlock()
 	if exp, exists := s.UsedJTIs[jti]; exists {
 		if time.Now().After(exp) {
-			// JTI expired, treat as unknown
-			delete(s.UsedJTIs, jti) // Clean up expired JTI
+			// JTI expirado, trate como desconhecido
+			delete(s.UsedJTIs, jti) // Limpa JTI expirado
 			return nil
 		}
-		// JTI exists and hasn't expired, so it's been used.
-		return fmt.Errorf("%w: JTI %s has already been used", fosite.ErrJTIKnown, jti)
+		// JTI existe e não expirou, então já foi usado.
+		return fmt.Errorf("%w: JTI %s já foi utilizado", fosite.ErrJTIKnown, jti)
 	}
-	// JTI doesn't exist, so it's valid.
+	// JTI não existe, então é válido.
 	return nil
 }
 
-// SetClientAssertionJWT marks a client assertion JWT ID as used (basic stub).
-// Renamed from SetClientAssertionJWTMarkedAsUsed and updated signature
+// SetClientAssertionJWT marca um ID JWT de asserção de cliente como usado.
 func (s *InMemoryStore) SetClientAssertionJWT(ctx context.Context, jti string, exp time.Time) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 	if currentExp, exists := s.UsedJTIs[jti]; exists {
-		// Should be caught by ClientAssertionJWTValid, but check again.
+		// Deveria ser detectado por ClientAssertionJWTValid, mas verifica novamente.
 		if time.Now().Before(currentExp) {
-			return fmt.Errorf("%w: Attempted to set already used JTI %s", fosite.ErrJTIKnown, jti)
+			return fmt.Errorf("%w: Tentativa de definir JTI já usado %s", fosite.ErrJTIKnown, jti)
 		}
 	}
-	// Store the JTI with its expiration time
+	// Armazena o JTI com seu tempo de expiração
 	s.UsedJTIs[jti] = exp
-	log.Printf("Marked JTI %s as used until %v", jti, exp)
+	log.Printf("Marcado JTI %s como usado até %v", jti, exp)
 	return nil
 }
 
-// CreateAuthorizeCodeSession stores an authorization code session.
+// CreateAuthorizeCodeSession armazena uma sessão de código de autorização.
 func (s *InMemoryStore) CreateAuthorizeCodeSession(ctx context.Context, code string, request fosite.Requester) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -145,20 +115,18 @@ func (s *InMemoryStore) CreateAuthorizeCodeSession(ctx context.Context, code str
 	return nil
 }
 
-// GetAuthorizeCodeSession retrieves an authorization code session.
+// GetAuthorizeCodeSession recupera uma sessão de código de autorização.
 func (s *InMemoryStore) GetAuthorizeCodeSession(ctx context.Context, code string, session fosite.Session) (fosite.Requester, error) {
 	s.Mutex.RLock()
 	defer s.Mutex.RUnlock()
 	req, ok := s.AuthorizeCodes[code]
 	if !ok {
-		return nil, fmt.Errorf("%w: Authorization code not found", fosite.ErrNotFound)
+		return nil, fmt.Errorf("%w: Código de autorização não encontrado", fosite.ErrNotFound)
 	}
-	// Note: Fosite expects the session to be hydrated here if necessary.
-	// Since we store the full requester, we might not need to do much with the session parameter.
 	return req, nil
 }
 
-// InvalidateAuthorizeCodeSession marks an authorization code session as invalid (used).
+// InvalidateAuthorizeCodeSession marca uma sessão de código de autorização como inválida (usada).
 func (s *InMemoryStore) InvalidateAuthorizeCodeSession(ctx context.Context, code string) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -166,7 +134,7 @@ func (s *InMemoryStore) InvalidateAuthorizeCodeSession(ctx context.Context, code
 	return nil
 }
 
-// CreateAccessTokenSession stores an access token session.
+// CreateAccessTokenSession armazena uma sessão de token de acesso.
 func (s *InMemoryStore) CreateAccessTokenSession(ctx context.Context, signature string, request fosite.Requester) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -174,38 +142,37 @@ func (s *InMemoryStore) CreateAccessTokenSession(ctx context.Context, signature 
 	return nil
 }
 
-// GetAccessTokenSession retrieves an access token session.
+// GetAccessTokenSession recupera uma sessão de token de acesso.
 func (s *InMemoryStore) GetAccessTokenSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) {
 	s.Mutex.RLock()
 	defer s.Mutex.RUnlock()
 	req, ok := s.AccessTokens[signature]
-	log.Printf("[GetAccessTokenSession] Looking up signature: %s. Found? %v", signature, ok)
+	log.Printf("[GetAccessTokenSession] Buscando assinatura: %s. Encontrado? %v", signature, ok)
 	if !ok {
-		return nil, fmt.Errorf("%w: Access token not found", fosite.ErrNotFound)
+		return nil, fmt.Errorf("%w: Token de acesso não encontrado", fosite.ErrNotFound)
 	}
 	return req, nil
 }
 
-// DeleteAccessTokenSession deletes an access token session.
+// DeleteAccessTokenSession exclui uma sessão de token de acesso.
 func (s *InMemoryStore) DeleteAccessTokenSession(ctx context.Context, signature string) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
-	log.Printf("[DeleteAccessTokenSession] Attempting to delete signature: %s. Exists? %v", signature, s.AccessTokens[signature] != nil)
+	log.Printf("[DeleteAccessTokenSession] Tentando excluir assinatura: %s. Existe? %v", signature, s.AccessTokens[signature] != nil)
 	delete(s.AccessTokens, signature)
-	log.Printf("[DeleteAccessTokenSession] After delete for signature: %s. Exists? %v", signature, s.AccessTokens[signature] != nil)
+	log.Printf("[DeleteAccessTokenSession] Após exclusão para assinatura: %s. Existe? %v", signature, s.AccessTokens[signature] != nil)
 	return nil
 }
 
-// RevokeAccessToken implements the revocation logic for access tokens.
-// For this simple store, it just deletes the token.
+// RevokeAccessToken implementa a lógica de revogação para tokens de acesso.
 func (s *InMemoryStore) RevokeAccessToken(ctx context.Context, signature string) error {
-	log.Printf("Revoking access token with signature: %s", signature)
+	log.Printf("Revogando token de acesso com assinatura: %s", signature)
 	return s.DeleteAccessTokenSession(ctx, signature)
 }
 
-// -- RefreshTokenStorage Methods --
+// -- Métodos para RefreshTokenStorage --
 
-// CreateRefreshTokenSession stores a refresh token session, keyed by client ID then signature.
+// CreateRefreshTokenSession armazena uma sessão de token de atualização.
 func (s *InMemoryStore) CreateRefreshTokenSession(ctx context.Context, signature string, clientID string, request fosite.Requester) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -216,62 +183,57 @@ func (s *InMemoryStore) CreateRefreshTokenSession(ctx context.Context, signature
 	return nil
 }
 
-// GetRefreshTokenSession retrieves a refresh token session by signature.
+// GetRefreshTokenSession recupera uma sessão de token de atualização pela assinatura.
 func (s *InMemoryStore) GetRefreshTokenSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) {
 	s.Mutex.RLock()
 	defer s.Mutex.RUnlock()
-	// Iterate through all clients to find the signature
+	// Itera por todos os clientes para encontrar a assinatura
 	for _, clientTokens := range s.RefreshTokens {
 		if req, ok := clientTokens[signature]; ok {
-			// Found the requester associated with the signature
+			// Encontrou o requirente associado à assinatura
 			return req, nil
 		}
 	}
-	// Signature not found in any client's token map
-	return nil, fmt.Errorf("%w: Refresh token not found for signature %s", fosite.ErrNotFound, signature)
+	// Assinatura não encontrada em nenhum mapa de tokens do cliente
+	return nil, fmt.Errorf("%w: Token de atualização não encontrado para assinatura %s", fosite.ErrNotFound, signature)
 }
 
-// DeleteRefreshTokenSession deletes a refresh token session by signature.
+// DeleteRefreshTokenSession exclui uma sessão de token de atualização pela assinatura.
 func (s *InMemoryStore) DeleteRefreshTokenSession(ctx context.Context, signature string) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
-	// Iterate through all clients to find and delete the signature
+	// Itera por todos os clientes para encontrar e excluir a assinatura
 	found := false
 	for clientID, clientTokens := range s.RefreshTokens {
 		if _, ok := clientTokens[signature]; ok {
 			delete(s.RefreshTokens[clientID], signature)
 			found = true
-			// Clean up empty client map if necessary (optional)
+			// Limpa o mapa de cliente vazio se necessário (opcional)
 			if len(s.RefreshTokens[clientID]) == 0 {
 				delete(s.RefreshTokens, clientID)
 			}
-			break // Assume signature is unique across clients
+			break // Assume que a assinatura é única entre os clientes
 		}
 	}
 	if !found {
-		log.Printf("Attempted to delete non-existent refresh token signature: %s", signature)
+		log.Printf("Tentativa de excluir assinatura de token de atualização inexistente: %s", signature)
 	}
-	return nil // No error required if not found
+	return nil // Nenhum erro necessário se não for encontrado
 }
 
-// RotateRefreshToken implements the refresh token rotation.
-// For this simple store, it just deletes the old token.
-// Added clientID argument to match oauth2.CoreStorage interface.
+// RotateRefreshToken implementa a rotação do token de atualização.
 func (s *InMemoryStore) RotateRefreshToken(ctx context.Context, signature string, clientID string) error {
-	// Note: clientID is not strictly needed for deletion logic here as DeleteRefreshTokenSession iterates,
-	// but it's required by the interface signature.
-	log.Printf("Rotating (deleting) refresh token with signature: %s (for client: %s - though clientID is ignored in delete logic)", signature, clientID)
+	log.Printf("Rotacionando (excluindo) token de atualização com assinatura: %s (para cliente: %s)", signature, clientID)
 	return s.DeleteRefreshTokenSession(ctx, signature)
 }
 
-// RevokeRefreshToken implements the revocation logic for refresh tokens.
-// For this simple store, it just deletes the token.
+// RevokeRefreshToken implementa a lógica de revogação para tokens de atualização.
 func (s *InMemoryStore) RevokeRefreshToken(ctx context.Context, signature string) error {
-	log.Printf("Revoking refresh token with signature: %s", signature)
+	log.Printf("Revogando token de atualização com assinatura: %s", signature)
 	return s.DeleteRefreshTokenSession(ctx, signature)
 }
 
-// CreateOpenIDConnectSession stores an OIDC session.
+// CreateOpenIDConnectSession armazena uma sessão OIDC.
 func (s *InMemoryStore) CreateOpenIDConnectSession(ctx context.Context, authorizeCode string, request fosite.Requester) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -279,20 +241,18 @@ func (s *InMemoryStore) CreateOpenIDConnectSession(ctx context.Context, authoriz
 	return nil
 }
 
-// GetOpenIDConnectSession retrieves an OIDC session.
+// GetOpenIDConnectSession recupera uma sessão OIDC.
 func (s *InMemoryStore) GetOpenIDConnectSession(ctx context.Context, authorizeCode string, requester fosite.Requester) (fosite.Requester, error) {
 	s.Mutex.RLock()
 	defer s.Mutex.RUnlock()
 	req, ok := s.OIDCSessions[authorizeCode]
 	if !ok {
-		return nil, fmt.Errorf("%w: OIDC session not found for authorize code %s", fosite.ErrNotFound, authorizeCode)
+		return nil, fmt.Errorf("%w: Sessão OIDC não encontrada para código de autorização %s", fosite.ErrNotFound, authorizeCode)
 	}
-	// Potentially hydrate the requester passed in?
-	// Check Fosite docs/examples for exact behavior expected.
 	return req, nil
 }
 
-// DeleteOpenIDConnectSession deletes an OIDC session.
+// DeleteOpenIDConnectSession exclui uma sessão OIDC.
 func (s *InMemoryStore) DeleteOpenIDConnectSession(ctx context.Context, authorizeCode string) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -300,20 +260,20 @@ func (s *InMemoryStore) DeleteOpenIDConnectSession(ctx context.Context, authoriz
 	return nil
 }
 
-// -- PKCE Request Storage Methods --
+// -- Métodos para Armazenamento de Requisições PKCE --
 
-// GetPKCERequestSession retrieves a PKCE request session.
+// GetPKCERequestSession recupera uma sessão de requisição PKCE.
 func (s *InMemoryStore) GetPKCERequestSession(ctx context.Context, signature string, session fosite.Session) (fosite.Requester, error) {
 	s.Mutex.RLock()
 	defer s.Mutex.RUnlock()
 	req, ok := s.PKCESessions[signature]
 	if !ok {
-		return nil, fmt.Errorf("%w: PKCE session not found for signature %s", fosite.ErrNotFound, signature)
+		return nil, fmt.Errorf("%w: Sessão PKCE não encontrada para assinatura %s", fosite.ErrNotFound, signature)
 	}
 	return req, nil
 }
 
-// CreatePKCERequestSession stores a PKCE request session.
+// CreatePKCERequestSession armazena uma sessão de requisição PKCE.
 func (s *InMemoryStore) CreatePKCERequestSession(ctx context.Context, signature string, requester fosite.Requester) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -321,7 +281,7 @@ func (s *InMemoryStore) CreatePKCERequestSession(ctx context.Context, signature 
 	return nil
 }
 
-// DeletePKCERequestSession deletes a PKCE request session.
+// DeletePKCERequestSession exclui uma sessão de requisição PKCE.
 func (s *InMemoryStore) DeletePKCERequestSession(ctx context.Context, signature string) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -329,9 +289,9 @@ func (s *InMemoryStore) DeletePKCERequestSession(ctx context.Context, signature 
 	return nil
 }
 
-// -- StorageInterface Implementation --
+// -- Operações CRUD de Client --
 
-// CreateClient implements the StorageInterface method for creating a client
+// CreateClient implementa o método StorageInterface para criar um cliente
 func (s *InMemoryStore) CreateClient(ctx context.Context, client fosite.Client) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -339,42 +299,44 @@ func (s *InMemoryStore) CreateClient(ctx context.Context, client fosite.Client) 
 	return nil
 }
 
-// UpdateClient implements the StorageInterface method for updating a client
+// UpdateClient implementa o método StorageInterface para atualizar um cliente
 func (s *InMemoryStore) UpdateClient(ctx context.Context, client fosite.Client) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 
-	// Verify client exists
+	// Verifica se o cliente existe
 	if _, ok := s.Clients[client.GetID()]; !ok {
-		return fmt.Errorf("%w: client with ID %s not found", fosite.ErrNotFound, client.GetID())
+		return fmt.Errorf("%w: cliente com ID %s não encontrado", fosite.ErrNotFound, client.GetID())
 	}
 
-	// Update client
+	// Atualiza o cliente
 	s.Clients[client.GetID()] = client
 	return nil
 }
 
-// DeleteClient implements the StorageInterface method for deleting a client
+// DeleteClient implementa o método StorageInterface para excluir um cliente
 func (s *InMemoryStore) DeleteClient(ctx context.Context, id string) error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 
-	// Check if client exists
+	// Verifica se o cliente existe
 	if _, ok := s.Clients[id]; !ok {
-		return fmt.Errorf("%w: client with ID %s not found", fosite.ErrNotFound, id)
+		return fmt.Errorf("%w: cliente com ID %s não encontrado", fosite.ErrNotFound, id)
 	}
 
-	// Delete client
+	// Exclui o cliente
 	delete(s.Clients, id)
 	return nil
 }
 
-// CreateToken implements the StorageInterface method for creating tokens
+// -- Métodos para Tokens em geral --
+
+// CreateToken implementa o método para criar tokens
 func (s *InMemoryStore) CreateToken(ctx context.Context, tokenType string, signature string, clientID string, data interface{}) error {
-	// Type assertion to ensure data is a fosite.Requester
+	// Type assertion para garantir que os dados sejam um fosite.Requester
 	requester, ok := data.(fosite.Requester)
 	if !ok {
-		return fmt.Errorf("invalid data type for token creation, expected fosite.Requester")
+		return fmt.Errorf("tipo de dados inválido para criação de token, esperado fosite.Requester")
 	}
 
 	switch tokenType {
@@ -385,13 +347,13 @@ func (s *InMemoryStore) CreateToken(ctx context.Context, tokenType string, signa
 	case "authorize_code":
 		return s.CreateAuthorizeCodeSession(ctx, signature, requester)
 	default:
-		return fmt.Errorf("unsupported token type: %s", tokenType)
+		return fmt.Errorf("tipo de token não suportado: %s", tokenType)
 	}
 }
 
-// GetToken implements the StorageInterface method for retrieving tokens
+// GetToken implementa o método para recuperar tokens
 func (s *InMemoryStore) GetToken(ctx context.Context, tokenType string, signature string) (interface{}, error) {
-	// Create an empty session for token retrieval
+	// Cria uma sessão vazia para recuperação de token
 	session := &openid.DefaultSession{}
 
 	var requester fosite.Requester
@@ -405,13 +367,13 @@ func (s *InMemoryStore) GetToken(ctx context.Context, tokenType string, signatur
 	case "authorize_code":
 		requester, err = s.GetAuthorizeCodeSession(ctx, signature, session)
 	default:
-		return nil, fmt.Errorf("unsupported token type: %s", tokenType)
+		return nil, fmt.Errorf("tipo de token não suportado: %s", tokenType)
 	}
 
 	return requester, err
 }
 
-// DeleteToken implements the StorageInterface method for deleting tokens
+// DeleteToken implementa o método para excluir tokens
 func (s *InMemoryStore) DeleteToken(ctx context.Context, tokenType string, signature string) error {
 	switch tokenType {
 	case "access_token":
@@ -421,11 +383,11 @@ func (s *InMemoryStore) DeleteToken(ctx context.Context, tokenType string, signa
 	case "authorize_code":
 		return s.InvalidateAuthorizeCodeSession(ctx, signature)
 	default:
-		return fmt.Errorf("unsupported token type: %s", tokenType)
+		return fmt.Errorf("tipo de token não suportado: %s", tokenType)
 	}
 }
 
-// RevokeToken implements the StorageInterface method for revoking tokens
+// RevokeToken implementa o método para revogar tokens
 func (s *InMemoryStore) RevokeToken(ctx context.Context, tokenType string, signature string) error {
 	switch tokenType {
 	case "access_token":
@@ -433,16 +395,18 @@ func (s *InMemoryStore) RevokeToken(ctx context.Context, tokenType string, signa
 	case "refresh_token":
 		return s.RevokeRefreshToken(ctx, signature)
 	default:
-		return fmt.Errorf("unsupported token type for revocation: %s", tokenType)
+		return fmt.Errorf("tipo de token não suportado para revogação: %s", tokenType)
 	}
 }
 
-// CreateSession implements the StorageInterface method for creating sessions
+// -- Métodos para Sessões --
+
+// CreateSession implementa o método para criar sessões
 func (s *InMemoryStore) CreateSession(ctx context.Context, sessionType string, id string, data interface{}) error {
-	// Type assertion to ensure data is a fosite.Requester
+	// Type assertion para garantir que os dados sejam um fosite.Requester
 	requester, ok := data.(fosite.Requester)
 	if !ok {
-		return fmt.Errorf("invalid data type for session creation, expected fosite.Requester")
+		return fmt.Errorf("tipo de dados inválido para criação de sessão, esperado fosite.Requester")
 	}
 
 	switch sessionType {
@@ -451,28 +415,28 @@ func (s *InMemoryStore) CreateSession(ctx context.Context, sessionType string, i
 	case "pkce":
 		return s.CreatePKCERequestSession(ctx, id, requester)
 	default:
-		return fmt.Errorf("unsupported session type: %s", sessionType)
+		return fmt.Errorf("tipo de sessão não suportado: %s", sessionType)
 	}
 }
 
-// GetSession implements the StorageInterface method for retrieving sessions
+// GetSession implementa o método para recuperar sessões
 func (s *InMemoryStore) GetSession(ctx context.Context, sessionType string, id string) (interface{}, error) {
-	// Create an empty session for session retrieval
+	// Cria uma sessão vazia para recuperação de sessão
 	session := &openid.DefaultSession{}
 
 	switch sessionType {
 	case "openid":
-		// For GetOpenIDConnectSession, we need a dummy requester
+		// Para GetOpenIDConnectSession, precisamos de um requester fake
 		dummyRequester := &fosite.Request{Session: session}
 		return s.GetOpenIDConnectSession(ctx, id, dummyRequester)
 	case "pkce":
 		return s.GetPKCERequestSession(ctx, id, session)
 	default:
-		return nil, fmt.Errorf("unsupported session type: %s", sessionType)
+		return nil, fmt.Errorf("tipo de sessão não suportado: %s", sessionType)
 	}
 }
 
-// DeleteSession implements the StorageInterface method for deleting sessions
+// DeleteSession implementa o método para excluir sessões
 func (s *InMemoryStore) DeleteSession(ctx context.Context, sessionType string, id string) error {
 	switch sessionType {
 	case "openid":
@@ -480,26 +444,16 @@ func (s *InMemoryStore) DeleteSession(ctx context.Context, sessionType string, i
 	case "pkce":
 		return s.DeletePKCERequestSession(ctx, id)
 	default:
-		return fmt.Errorf("unsupported session type: %s", sessionType)
+		return fmt.Errorf("tipo de sessão não suportado: %s", sessionType)
 	}
 }
 
-// ValidateJWT implements the StorageInterface method for validating JWTs
+// ValidateJWT implementa o método para validar JWTs
 func (s *InMemoryStore) ValidateJWT(ctx context.Context, jti string) error {
 	return s.ClientAssertionJWTValid(ctx, jti)
 }
 
-// MarkJWTAsUsed implements the StorageInterface method for marking JWTs as used
+// MarkJWTAsUsed implementa o método para marcar JWTs como usados
 func (s *InMemoryStore) MarkJWTAsUsed(ctx context.Context, jti string, exp time.Time) error {
 	return s.SetClientAssertionJWT(ctx, jti, exp)
 }
-
-// Ensure InMemoryStore implements all required interfaces
-var (
-	_ fosite.Storage                     = (*InMemoryStore)(nil)
-	_ fosite.ClientManager               = (*InMemoryStore)(nil)
-	_ openid.OpenIDConnectRequestStorage = (*InMemoryStore)(nil)
-	_ oauth2.CoreStorage                 = (*InMemoryStore)(nil)
-	_ oauth2.TokenRevocationStorage      = (*InMemoryStore)(nil)
-	_ StorageInterface                   = (*InMemoryStore)(nil) // Ensure our store implements our generic interface
-)
