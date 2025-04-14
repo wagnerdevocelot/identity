@@ -1,38 +1,52 @@
-# Stage 1: Build the application
-# Use a specific Alpine version with security patches applied
-FROM golang:1.22.0-alpine3.19 AS builder
+# Usamos alpine somente para compilação - não estará presente na imagem final
+FROM golang:1.22.3-alpine3.19 AS builder
 
-# Update packages to patch vulnerabilities
-RUN apk update && apk upgrade --no-cache
+# Instalar ferramentas essenciais para build
+RUN apk add --no-cache ca-certificates tzdata git
 
-WORKDIR /app
+WORKDIR /build
 
-# Copy dependency manifests first to leverage Docker cache
+# Copiar módulos Go e baixar dependências
 COPY go.mod go.sum* ./
+RUN go mod download && go mod verify
 
-# Download dependencies
-RUN go mod download
-
-# Copy the entire source code including templates
-# This ensures templates are available in the builder stage if needed,
-# and importantly, for copying to the final stage later.
+# Copiar todo o código fonte
 COPY . .
 
-# Build the Go app, compiling all .go files in the current directory
-# Stage 2: Create the final lightweight runtime image
-FROM gcr.io/distroless/static-debian11:nonroot
+# Compilar aplicação com flags específicos para segurança
+# -trimpath: remove caminhos do sistema de compilação
+# CGO_ENABLED=0: gera binário totalmente estático
+# ldflags: remove dados de debug e símbolos
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath \
+    -ldflags="-w -s -extldflags '-static'" \
+    -o /app/identity-go ./cmd/identity
 
+# Imagem final SCRATCH - não contém absolutamente nada além do que copiamos
+FROM scratch
+
+# Metadados da imagem
+LABEL org.opencontainers.image.title="Identity Server"
+LABEL org.opencontainers.image.description="Servidor de identidade OAuth2/OpenID Connect"
+LABEL org.opencontainers.image.vendor="Seu Projeto"
+LABEL org.opencontainers.image.version="1.0.0"
+
+# Copiar apenas o necessário da imagem de build
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /app/identity-go /app/identity-go
+COPY --from=builder /build/templates /app/templates
+
+# Configuração de ambiente
+ENV TZ=America/Sao_Paulo
+
+# Verificação de integridade da aplicação
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/app/identity-go", "health"] || exit 1
+
+# Diretório de trabalho e porta exposta  
 WORKDIR /app
-
-# Copy only the compiled binary from the builder stage
-COPY --from=builder /identity-go /identity-go
-
-# Copy only the compiled binary from the builder stage
-COPY --from=builder /app/identity-go /identity-go
-COPY --from=builder /app/templates ./templates
-
-# Expose the port the application listens on
 EXPOSE 8080
 
-# Command to run the executable when the container starts
-CMD ["/identity-go"] 
+# Iniciar aplicação
+ENTRYPOINT ["/app/identity-go"]

@@ -4,7 +4,6 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -528,11 +527,4 @@ func (h *OAuth2Handler) createOrUpdateSession(w http.ResponseWriter, r *http.Req
 		Expires:  time.Now().Add(24 * time.Hour), // Expiração de exemplo
 	}
 	http.SetCookie(w, cookie)
-}
-
-// Helper para escrever erros JSON
-func writeJsonError(w http.ResponseWriter, err error, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // Ignorar erro na escrita
 }
