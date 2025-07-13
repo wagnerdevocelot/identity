@@ -216,12 +216,12 @@ func (a *LegacyDBAdapter) DeleteSession(ctx context.Context, sessionType, id str
 }
 
 func (a *LegacyDBAdapter) ValidateJWT(ctx context.Context, jti string) error {
-	row := a.DB.QueryRowContext(ctx, `SELECT count(1) FROM used_jtis WHERE jti=?`, jti)
-	var count int
-	if err := row.Scan(&count); err != nil {
+	row := a.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM used_jtis WHERE jti=?)`, jti)
+	var exists bool
+	if err := row.Scan(&exists); err != nil {
 		return fmt.Errorf("db query failed: %w", err)
 	}
-	if count > 0 {
+	if exists {
 		return fosite.ErrJTIKnown
 	}
 	return nil
