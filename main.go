@@ -13,9 +13,9 @@ import (
 	"github.com/ory/fosite/handler/openid"
 )
 
-// For this example, we use an in-memory store.
-// In a real-world application, you would use a persistent store (e.g., SQL database).
-var store = NewInMemoryStore()
+// For this example, we use an in-memory store wrapped by a logging adapter.
+// This demonstrates how a new storage adapter can be integrated gradually.
+var store StorageInterface = NewLoggingAdapter(NewInMemoryStore())
 
 // Fosite configuration using fosite.Config for v0.49.0+
 var fositeConfig = &fosite.Config{
