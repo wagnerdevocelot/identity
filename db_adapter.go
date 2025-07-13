@@ -69,7 +69,7 @@ func (a *LegacyDBAdapter) GetClient(ctx context.Context, id string) (fosite.Clie
 	var lc legacyClient
 	if err := row.Scan(&lc.ID, &lc.Secret, &lc.RedirectURIs, &lc.Scopes, &lc.IsPublic); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: client not found", fosite.ErrNotFound)
+			return nil, fmt.Errorf("client not found: %w", fosite.ErrNotFound)
 		}
 		return nil, fmt.Errorf("db query failed: %w", err)
 	}
