@@ -27,7 +27,7 @@ This example uses hardcoded configuration values and `compose.Compose` for setti
 *   **Fosite Setup:** Uses `compose.Compose` with `compose.CommonStrategy` (`main.go`).
 *   **HMAC Secret:** A 32-byte secret (`jwtSecret`) is defined and set in `fositeConfig.GlobalSecret`. The core HMAC strategy (`CoreStrategy`) is configured via `compose.NewOAuth2HMACStrategy(fositeConfig)`, relying on the `GlobalSecret`. **Use a strong, random secret in production.**
 *   **OIDC Strategy:** Uses RSA keys (generated on startup) configured via `compose.NewOpenIDConnectStrategy(...)` within `CommonStrategy`. **Use persistent, securely stored RSA keys in production.**
-*   **Storage:** Uses an in-memory store (`storage.go`). All data is lost on restart. A generic `StorageInterface` is now available for implementing persistent storage alternatives. **Replace with persistent storage (SQL, etc.) for production.**
+*   **Storage:** Uses an in-memory store (`storage.go`). All data is lost on restart. A generic `StorageInterface` is now available for implementing persistent storage alternatives. An example SQL adapter is provided in `db_adapter.go` to demonstrate how legacy tables can be mapped to the interface. **Replace with persistent storage (SQL, etc.) for production.**
 *   **Example Client:** Client ID `my-test-client`, secret `foobar` (hashed in `storage.go`).
 *   **Port:** Listens on `:8080` (`main.go`).
 *   **Session Management:** Basic, insecure in-memory sessions (`handlers.go`). **Replace with robust session handling.**
