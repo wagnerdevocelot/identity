@@ -8,13 +8,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"time"
 	"testing"
+	"time"
 
 	// Add imports needed for TestAuthorizationCodeTokenExchange
+	"github.com/ory/fosite"
 	"github.com/ory/fosite/handler/openid"
 	"github.com/ory/fosite/token/jwt"
-	"github.com/ory/fosite"
 )
 
 // TestClientCredentialsFlow tests the OAuth 2.0 Client Credentials Grant flow.
@@ -84,13 +84,13 @@ func TestAuthorizationCodeTokenExchange(t *testing.T) {
 	srv := httptest.NewServer(router)
 	defer srv.Close()
 
-	// --- Simulate obtaining an auth code --- 
-	// In a real integration test, you'd drive the browser flow or manipulate 
+	// --- Simulate obtaining an auth code ---
+	// In a real integration test, you'd drive the browser flow or manipulate
 	// the store to get a real code. Here, we'll craft a request to create one directly.
 
 	// 1. Create Authorize Request context (mimicking browser request)
 	authReq, _ := http.NewRequest("GET", srv.URL+"/oauth2/auth?response_type=code&client_id=my-test-client&redirect_uri="+url.QueryEscape(srv.URL+"/callback")+"&scope=openid+profile+offline&state=test-state", nil)
-	
+
 	// 2. Parse the request using Fosite
 	ar, err := oauth2Provider.NewAuthorizeRequest(authReq.Context(), authReq)
 	if err != nil {
@@ -121,7 +121,7 @@ func TestAuthorizationCodeTokenExchange(t *testing.T) {
 	// 5. Extract the code from the redirect
 	result := respRecorder.Result()
 	// Fosite's WriteAuthorizeResponse typically uses 303 See Other for redirects
-	if result.StatusCode != http.StatusSeeOther && result.StatusCode != http.StatusFound { 
+	if result.StatusCode != http.StatusSeeOther && result.StatusCode != http.StatusFound {
 		t.Fatalf("Expected redirect status 302 or 303, got %d", result.StatusCode)
 	}
 	location, err := result.Location()
@@ -134,7 +134,7 @@ func TestAuthorizationCodeTokenExchange(t *testing.T) {
 	}
 	t.Logf("Successfully obtained auth code: %s", code)
 
-	// --- Test the Token Exchange --- 
+	// --- Test the Token Exchange ---
 
 	// Client credentials
 	clientID := "my-test-client"
@@ -199,7 +199,7 @@ func TestTokenIntrospection(t *testing.T) {
 	srv := httptest.NewServer(router)
 	defer srv.Close()
 
-	// --- Obtain an Access Token (using Client Credentials) --- 
+	// --- Obtain an Access Token (using Client Credentials) ---
 	clientID := "my-test-client"
 	clientSecret := "foobar"
 	tokenData := url.Values{}
@@ -235,7 +235,7 @@ func TestTokenIntrospection(t *testing.T) {
 	}
 	t.Logf("Introspection Test: Obtained access token: %s...", accessToken[:min(10, len(accessToken))]) // Log prefix
 
-	// --- Introspect the Token --- 
+	// --- Introspect the Token ---
 
 	introData := url.Values{}
 	introData.Set("token", accessToken)
@@ -288,7 +288,7 @@ func TestTokenRevocation(t *testing.T) {
 	srv := httptest.NewServer(router)
 	defer srv.Close()
 
-	// --- Obtain an Access Token (using Client Credentials) --- 
+	// --- Obtain an Access Token (using Client Credentials) ---
 	clientID := "my-test-client"
 	clientSecret := "foobar"
 	tokenData := url.Values{}
@@ -320,7 +320,7 @@ func TestTokenRevocation(t *testing.T) {
 	}
 	t.Logf("Revocation Test: Obtained access token: %s...", accessToken[:min(10, len(accessToken))])
 
-	// --- Revoke the Token via HTTP Endpoint --- 
+	// --- Revoke the Token via HTTP Endpoint ---
 	revokeData := url.Values{}
 	revokeData.Set("token", accessToken)
 
@@ -342,7 +342,7 @@ func TestTokenRevocation(t *testing.T) {
 	}
 	t.Logf("Revocation Test: Revoke request returned 200 OK")
 
-	// --- Verify Revocation using Fosite Provider's IntrospectToken --- 
+	// --- Verify Revocation using Fosite Provider's IntrospectToken ---
 	// This directly checks the storage via the provider's logic.
 	ctx := context.Background() // Create a background context
 	// Capture all 3 return values from IntrospectToken
@@ -351,7 +351,7 @@ func TestTokenRevocation(t *testing.T) {
 	// We EXPECT an error here ideally, but due to InMemoryStore limitations,
 	// the token isn't actually deleted by RevokeAccessToken as it uses a different ID.
 	// So, we assert that the introspection *succeeds* for now, highlighting the issue.
-	if err != nil { 
+	if err != nil {
 		t.Errorf("Revocation Test: Expected NO error when introspecting internally (due to store limitation), but got: %v", err)
 	} else {
 		t.Logf("Revocation Test: Introspection succeeded internally as expected (token not deleted by revoke). Requester: %+v, TokenType: %s", requester, tokenType)
@@ -381,11 +381,11 @@ func TestLoginHandler(t *testing.T) {
 	srv := httptest.NewServer(router)
 	defer srv.Close()
 
-	// --- Prepare a temporary login session --- 
+	// --- Prepare a temporary login session ---
 	originalAuthURL := srv.URL + "/oauth2/auth?client_id=my-test-client&etc"
 	loginSessionID := "login_session_for_test_" + fmt.Sprintf("%d", time.Now().UnixNano())
 	// Use the exported function from handlers.go
-	csrfToken, err := GenerateCSRFToken() 
+	csrfToken, err := GenerateCSRFToken()
 	if err != nil {
 		t.Fatalf("Login Test: Failed to generate CSRF token: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestLoginHandler(t *testing.T) {
 	// Cleanup the session afterwards
 	defer delete(sessions, loginSessionID)
 
-	// --- Simulate Login Form Submission --- 
+	// --- Simulate Login Form Submission ---
 	formData := url.Values{}
 	formData.Set("username", "user")
 	formData.Set("password", "password")
@@ -428,7 +428,7 @@ func TestLoginHandler(t *testing.T) {
 	}
 	defer res.Body.Close()
 
-	// --- Assertions --- 
+	// --- Assertions ---
 
 	// 1. Check status code (should be a redirect)
 	if res.StatusCode != http.StatusFound { // loginHandler uses 302 Found
@@ -472,12 +472,12 @@ func TestConsentHandler(t *testing.T) {
 	srv := httptest.NewServer(router)
 	defer srv.Close()
 
-	// --- Prepare an authenticated session awaiting consent --- 
+	// --- Prepare an authenticated session awaiting consent ---
 	clientID := "my-test-client"
 	userID := "test-user-for-consent"
 	// Add a valid redirect_uri matching the client config
-	redirectURI := "http://localhost:3000/callback" 
-	originalAuthURL := fmt.Sprintf("%s/oauth2/auth?response_type=code&client_id=%s&scope=openid+profile+email&state=consent-test&redirect_uri=%s", 
+	redirectURI := "http://localhost:3000/callback"
+	originalAuthURL := fmt.Sprintf("%s/oauth2/auth?response_type=code&client_id=%s&scope=openid+profile+email&state=consent-test&redirect_uri=%s",
 		srv.URL, clientID, url.QueryEscape(redirectURI))
 	requestedScopes := []string{"openid", "profile", "email"}
 	sessionID := "auth_session_for_consent_" + fmt.Sprintf("%d", time.Now().UnixNano())
@@ -498,7 +498,7 @@ func TestConsentHandler(t *testing.T) {
 	}
 	defer delete(sessions, sessionID)
 
-	// --- Simulate Consent Form Submission (Allowing scopes) --- 
+	// --- Simulate Consent Form Submission (Allowing scopes) ---
 	formData := url.Values{}
 	formData.Set("consent", "Allow")
 	formData.Set("csrf_token", csrfToken)
@@ -530,10 +530,10 @@ func TestConsentHandler(t *testing.T) {
 	}
 	defer res.Body.Close()
 
-	// --- Assertions --- 
+	// --- Assertions ---
 
 	// 1. Check status code (should be a redirect back to auth endpoint)
-	if res.StatusCode != http.StatusFound { 
+	if res.StatusCode != http.StatusFound {
 		t.Fatalf("Consent Test: Expected status code %d (Found), got %d", http.StatusFound, res.StatusCode)
 	}
 
@@ -562,7 +562,7 @@ func TestConsentHandler(t *testing.T) {
 			actualGranted[s] = true
 		}
 		if len(actualGranted) != len(expectedGranted) {
-			t.Errorf("Consent Test: Expected %d granted scopes (%v), but got %d (%v)", 
+			t.Errorf("Consent Test: Expected %d granted scopes (%v), but got %d (%v)",
 				len(expectedGranted), expectedGranted, len(actualGranted), actualGranted)
 		} else {
 			for scope := range expectedGranted {
@@ -578,8 +578,8 @@ func TestConsentHandler(t *testing.T) {
 
 // Helper function for logging token prefix safely
 func min(a, b int) int {
-    if a < b {
-        return a
-    }
-    return b
-} 
+	if a < b {
+		return a
+	}
+	return b
+}
