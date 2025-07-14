@@ -179,7 +179,7 @@ func TestLoggingAdapterMetrics(t *testing.T) {
 	}
 
 	metrics := adapter.Metrics()
-	expected := []string{"CreateClient", "GetClient", "UpdateClient", "DeleteClient", "CreateToken", "GetToken", "RevokeToken", "DeleteToken", "CreateSession", "GetSession", "DeleteSession", "ValidateJWT", "MarkJWTAsUsed", "CreatePKCESession", "GetPKCESession", "DeletePKCESession"}
+	expected := []string{"CreateClient", "GetClient", "UpdateClient", "DeleteClient", "CreateToken", "GetToken", "RevokeToken", "DeleteToken", "CreateSession", "GetSession", "DeleteSession", "ValidateJWT", "MarkJWTAsUsed", "CreatePKCERequestSession", "GetPKCERequestSession", "DeletePKCERequestSession"}
 	for _, m := range expected {
 		if metrics[m] == 0 {
 			t.Errorf("metric %s not incremented", m)
