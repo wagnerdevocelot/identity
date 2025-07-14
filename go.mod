@@ -3,6 +3,7 @@ module identity-go
 go 1.22
 
 require (
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/ory/fosite v0.49.0
 	golang.org/x/crypto v0.31.0
 )
