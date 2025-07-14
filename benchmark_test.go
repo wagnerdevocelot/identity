@@ -33,6 +33,7 @@ func BenchmarkLegacyDBCreateToken(b *testing.B) {
 	}
 	adapter := NewLegacyDBAdapter(db)
 	req := []byte("data")
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		adapter.CreateToken(b.Context(), "access_token", "sig"+strconv.Itoa(i), "c1", req)
 	}
