@@ -12,6 +12,7 @@ import (
 func BenchmarkLoggingAdapterCreateToken(b *testing.B) {
 	adapter := NewLoggingAdapter(NewInMemoryStore())
 	req := &fosite.Request{}
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		adapter.CreateToken(b.Context(), "access_token", "sig"+strconv.Itoa(i), "c1", req)
 	}
