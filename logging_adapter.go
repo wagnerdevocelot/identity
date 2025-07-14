@@ -108,7 +108,7 @@ func (l *LoggingAdapter) DeleteClient(ctx context.Context, id string) error {
 func (l *LoggingAdapter) CreateToken(ctx context.Context, tokenType, signature, clientID string, data interface{}) error {
 	err := l.fullStorage.CreateToken(ctx, tokenType, signature, clientID, data)
 	if err != nil {
-		log.Printf("logging adapter: CreateToken %s failed: %v", tokenType, err)
+		log.Printf("logging adapter: CreateToken %s failed (signature: %s, clientID: %s): %v", tokenType, signature, clientID, err)
 		l.inc("CreateTokenError")
 	} else {
 		l.inc("CreateToken")
