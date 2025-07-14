@@ -56,24 +56,30 @@ func (l *LoggingAdapter) Metrics() map[string]int {
 }
 
 func (l *LoggingAdapter) GetClient(ctx context.Context, id string) (fosite.Client, error) {
-	c, err := l.fullStorage.GetClient(ctx, id)
-	if err != nil {
-		log.Printf("logging adapter: GetClient %s failed: %v", id, err)
-		l.inc("GetClientError")
-	} else {
-		l.inc("GetClient")
+	operation := func() (interface{}, error) {
+		return l.fullStorage.GetClient(ctx, id)
 	}
-	return c, err
+	result, err := l.logAndIncrementMetrics(
+		ctx,
+		operation,
+		"GetClient",
+		"GetClientError",
+		"logging adapter: GetClient %s failed: %v",
+	)
+	return result.(fosite.Client), err
 }
 
 func (l *LoggingAdapter) CreateClient(ctx context.Context, client fosite.Client) error {
-	err := l.fullStorage.CreateClient(ctx, client)
-	if err != nil {
-		log.Printf("logging adapter: CreateClient %s failed: %v", client.GetID(), err)
-		l.inc("CreateClientError")
-	} else {
-		l.inc("CreateClient")
+	operation := func() (interface{}, error) {
+		return nil, l.fullStorage.CreateClient(ctx, client)
 	}
+	_, err := l.logAndIncrementMetrics(
+		ctx,
+		operation,
+		"CreateClient",
+		"CreateClientError",
+		"logging adapter: CreateClient %s failed: %v",
+	)
 	return err
 }
 
